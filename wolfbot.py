@@ -2,11 +2,14 @@
 #
 # IRC Bot to moderate a game of "Werewolf".
 #
-#    By Ben Collins-Sussman <sussman@red-bean.com>
+#    by Ben Collins-Sussman <sussman@red-bean.com>
+#       http://www.red-bean.com/sussman
 #
-# Werewolf rules:  http://www.eblong.com/zarf/werewolf.html
+# Werewolf is a traditional party game, sometimes known as 'Mafia',
+# with dozens of variants.  This bot is following Andrew Plotkin's rules:
+# http://www.eblong.com/zarf/werewolf.html
 #
-# Originally based on example bot and irc-bot class from
+# Code originally based on example bot and irc-bot class from
 # Joel Rosdahl <joel@rosdahl.net>, author of included python-irclib.
 #
 
@@ -32,7 +35,7 @@ The known commands are:
     
 """
 
-import sys, string
+import sys, string, random
 from ircbot import SingleServerIRCBot
 from irclib import nm_to_n, nm_to_h, irc_lower
 
@@ -43,6 +46,8 @@ class WolfBot(SingleServerIRCBot):
     self.game_in_progress = 0
     self.live_players = []
     self.dead_players = []
+    self.wolves = []
+    self.seer = None
     self.roledict = {}
     self.start()
     
@@ -57,7 +62,8 @@ class WolfBot(SingleServerIRCBot):
 
   def on_pubmsg(self, c, e):
     a = string.split(e.arguments()[0], ":", 1)
-    if len(a) > 1 and irc_lower(a[0]) == irc_lower(self.connection.get_nickname()):
+    if len(a) > 1 \
+           and irc_lower(a[0]) == irc_lower(self.connection.get_nickname()):
       self.do_command(e, string.strip(a[1]))
     return
 
@@ -65,14 +71,13 @@ class WolfBot(SingleServerIRCBot):
     nick = nm_to_n(e.source())
     c = self.connection
     if self.game_in_progress:
-      c.notice(nick, "A game is already in progress.  Use 'quit game' to end it.")
-    else:
+      c.notice(nick,
+               "A game is already in progress.  Use 'quit game' to end it.")
 
-      # Build a dictionary that assigns each player to a role.
+    else:
       chname, chobj = self.channels.items()[0]
       users = chobj.users()
-      for user in users:
-        pass
+      wolf1 = users.pop(random.randrange(len(users)))
 
       # Private message each user
 
@@ -83,7 +88,8 @@ class WolfBot(SingleServerIRCBot):
     nick = nm_to_n(e.source())
     c = self.connection
     if not self.game_in_progress:
-      c.notice(nick, "No game is in progress.  Use 'start game' to begin a game.")
+      c.notice(nick,
+               "No game is in progress.  Use 'start game' to begin a game.")
     else:
       c.notice(nick, "The game has ended.")
       self.game_in_progress = 0
