@@ -5,16 +5,14 @@ Things to improve:
 
 - nickname tracking:
 
-    - when people leave mid-game, notice and update the game accordingly
     - same thing when somebody changes nick.
 
 - create new command show voter breakdown (prints vote hash)
 
-- should wolfbot speak in bold?
+- should wolfbot speak in bold? //no, irc markup is undefined, will not be consistent across clients -mml
 
 - need ability to create a 'list' of players before the game starts,
   some sort of registry that we can add/remove players from.  
 
-- need to handle user quit
 
 
