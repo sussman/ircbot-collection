@@ -40,7 +40,7 @@ from threading import Thread, Event
 # General texts for narrating the game.  Change these global strings
 # however you wish, without having to muck with the core logic!
 
-minUsers=7
+minUsers=5
 defaultPort=6667
 
 # Printed when a game first starts:
@@ -158,7 +158,7 @@ class WolfBot(SingleServerIRCBot):
             self.live_players.remove(nick)
         if(nick in self.wolves):
             self.wolves.remove(nick)
-            self.say_public("%s leaves a trail of wiry hairs in his wake..."%(nick))
+            self.say_public("%s's apartment always smelled like wet dog!"%(nick))
         if(nick in self.villagers):
             self.villagers.remove(nick)
             self.say_public("%s was a quiet, normal sort of feller. Kept to himself...."%(nick))
@@ -559,10 +559,11 @@ class WolfBot(SingleServerIRCBot):
       
   def print_alive(self):
     "Declare who's still alive."
-    
-    msg = "The following players are still alive: "
-    msg = msg + `self.live_players`
+    msg = "The following players are still alive: %s"%', '.join(self.live_players)
     self.say_public(msg)
+    if self.dead_players:
+      msg = "The following players are dead : %s"%', '.join(self.dead_players)
+      self.say_public(msg)
 
 
   def match_name(self, nick):
@@ -749,7 +750,7 @@ class OutputManager(Thread):
         while self.queue:
           msg,target = self.queue.pop(0)
           self.connection.privmsg(target, msg)
-          time.sleep(.3)
+          time.sleep(.5)
         self.event.clear()
 
   def send(self, msg, target):
