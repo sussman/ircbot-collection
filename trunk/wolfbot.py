@@ -135,8 +135,9 @@ class WolfBot(SingleServerIRCBot):
         list.append(new)
         list.remove(old)
     for map in (self.wolf_votes, self.villager_votes, self.tally):
-      map[new]=map[old]
-      del map[old]
+      if map.has_key(new):
+        map[new]=map[old]
+        del map[old]
     if new == self.seer:
       self.seer=new
 
@@ -646,13 +647,13 @@ class WolfBot(SingleServerIRCBot):
       self.start_game(nm_to_n(e.source()))
     elif cmd == "votes":      
         non_voters = []
-        for n in tally.keys():
-            if not tally[n]:
+        if self.villager_votes.keys():
+          for n in self.villagers:
+              if not villager_votes.has_key(n):
                 non_voters.append(n)
-        if non_voters:
-            self.say_public("The following have no votes registered: %s"%non_voters)
+          self.say_public("The following have no votes registered: %s"%non_voters)
         else:
-            self.say_public("Everyone has voted. wtf?!")
+            self.say_public("Nobody has voted yet.")
 
     elif len(cmds)>1 and cmds[0]=="del":
         for nick in cmds[1:]:
@@ -738,11 +739,10 @@ class OutputManager(Thread):
   def run(self):
       while 1:
         self.event.wait()
-        print "queue woke up, queue size is %d"%len(self.queue)
         while self.queue:
           msg,target = self.queue.pop(0)
           self.connection.privmsg(target, msg)
-          time.sleep(1)
+          time.sleep(.3)
         self.event.clear()
 
   def send(self, msg, target):
