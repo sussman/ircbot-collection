@@ -32,6 +32,7 @@ defaultPort=6667
 exclamations = \
 ["Narf!",
  "Zort!",
+ "Nogg!",
  "Poit!",
  "Oooo!"]
 
