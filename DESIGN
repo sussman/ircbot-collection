@@ -1,80 +1,18 @@
 
-PREREQS:   bot must be the only 'op' in a dedicated game channel.
-           channel must be moderated (+m)
-           "private" channels created by bot must be +s
+Things to improve:
+
+- command parser doesn't like trailing whitespace in commands. use strip().
+
+- nickname tracking:
+
+    - when people leave mid-game, notice and update the game accordingly
+    - same thing when somebody changes nick.
+
+- create new command show voter breakdown (prints vote hash)
+
+- should wolfbot speak in bold?
+
+- need ability to create a 'list' of players before the game starts,
+  some sort of registry that we can add/remove players from.  
 
 
-alive
-
-   lists living players
-
-dead
- 
-   lists dead players
-
-
-----
-
-command:  start
-
-   -> bot checks that there are at least 5 people playing.  if number
-      of players is even, issue a warning, recommend getting an odd
-      number.
-
-   -> bot sends /msg to each nick, stating each person's role, and
-      reminding player to keep it a secret.
-
-   -> bot reports that the game has been successfully initialized, and
-      is ready to continue.  (game commands won't work until game has
-      been correctly started.)
-
-   -> bot explains scenario: 2 people are werewolves, one is a seer,
-      everyone else is villager.  wolves are hiding, trying to kill
-      everyone.  villagers are trying to lynch werewolves.
-
-
-Night Cycle runs automatically:
-
-   -> bot prints night-speech to public channel, tells everyone that
-      they are asleep, and to please wait.
-
-   -> simultaneously:
-
-        * in private /msgs, bot tells wolves to privately discuss whom
-          to kill.  both wolves must send private message "kill
-          <username>" to signify agreement.
-
-        * in private /msg, bot asks seer to ask about someone.  seer
-          pm's "ask <username>", and bot pm's with "<username>
-          is/isn't a werewolf."
-
-   -> when both private dialogue is 'complete', bot prints speech into
-      public channel: "You awake to find the mutilated body of
-      <username>.  Upon examining the body, you discover that this
-      person was actually a {villager|werewolf|seer}."
-
-        -> bot 'devoices' the dead player!!
-
-Day Cycle runs automatically:
-
-   -> bot prints day-speech to public channel: tells everyone that as
-      a mob, they demand bloody justice.  they must lynch somebody.
-      they must discuss who it will be, and they can take as long as
-      they want to decide.   when each player has decided, they must
-      type "lynch <username>".
-
-   -> bot doesn't let lynching happen until a majority (> 50%) of
-      players have agreed on same person.  if no player has >50%
-      votes, all votes are tossed and voting begins from scratch.
-
-   -> after someone is lynched, bot reveals their true role.  person
-      is dead, bot 'devoices' them.
-
-
-Game ends when:
-
-   user types "quit" command, or
-
-   both wolves are dead, or,
-
-   number of wolves == number of players.

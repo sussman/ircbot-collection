@@ -21,15 +21,13 @@ ircbot.py.  The bot enters a channel and listens for commands in
 private messages and channel traffic.  Commands in channel messages
 are given by prefixing the text by the bot name followed by a colon.
 
-The known commands are:
-
-    die -- Let the bot cease to exist.
+The main commands are:
 
     start game -- start a new werewolf game.
 
-    end game -- quit the current werewolf game.
+    end game -- quit the current werewolf game (you must have started it)
 
-    stats -- print information about living/dead people.
+    stats -- print information about state of game-in-progress.
     
 """
 
