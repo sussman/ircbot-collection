@@ -33,31 +33,66 @@ The known commands are:
     
 """
 
-import sys, string, random
+import sys, string, random, time
 from ircbot import SingleServerIRCBot
 from irclib import nm_to_n, nm_to_h, irc_lower
 
 #---------------------------------------------------------------------
-
 # General texts for narrating the game.  Change these global strings
-# however you wish.
+# however you wish, without having to muck with the core logic!
 
 
-# Printed when a game first starts.
+# Printed when a game first starts:
 
-new_game_text = "This is a game of paranoia and psychological intrigue.  Everyone in this group appears to be a common villager, but three of you are 'special'.  Two people are actually evil werewolves, seeking to kill everyone while concealing their identity.  And one of you is also a 'seer'; you have the ability to learn whether a specific person is or is not a werewolf.  The seer might not want to reveal his/her identify, as s/he becomes a prime werewolf target.  As a community, your group objective is to weed out the werewolves and lynch them both, before you're all killed in your sleep."
+new_game_texts = \
+["This is a game of paranoia and psychological intrigue.",
 
-# Printed to inform people of their initial roles.
+ "Everyone in this group appears to be a common villager, but three of\
+ you are 'special'.  Two people are actually evil werewolves, seeking\
+ to kill everyone while concealing their identity.",
+ 
+ "And one of you is also a 'seer'; you have the ability to learn\
+ whether a specific person is or is not a werewolf.",
+ 
+ "As a community, your group objective is to weed out the werewolves\
+ and lynch them both, before you're all killed in your sleep."]
 
-wolf_intro_text = "You are a WEREWOLF.  You want to kill everyone while they sleep.  Whatever happens, don't let the villagers know!"
+# Printed when informing players of their initial roles:
 
-seer_intro_text = "You're not an ordinary villager, but are a SEER.  You'll have an occasional chance to privately learn whether someone is or isn't a werewolf.  Keep your identity secret, or the werewolves may kill you!"
+wolf_intro_text = \
+"You are a WEREWOLF.  You want to kill everyone while they sleep. \
+Whatever happens, keep your identity secret.  Act natural!"
 
-villager_intro_text = "You're an ordinary villager.  When the time comes, be ready to join the mob and lynch a werewolf."
+seer_intro_text = \
+"You're a villager, but also a SEER.  Later on, you'll get chances to \
+learn whether someone is or isn't a werewolf.  Keep your identity \
+secret, or the werewolves may kill you!"
+
+villager_intro_text = \
+"You're an ordinary villager."
 
 
+# Printed when night begins:
 
-# Printed when night begins.
+night_game_texts = \
+["Darkness falls:  it is NIGHT.",
+ "The whole village sleeps peacefully...",
+ "Everyone relax and wait for morning."]
+
+# Printed when wolves and villager get nighttime instructions:
+
+night_seer_texts = \
+["In your dreams, you have the ability to see whether a certain person\
+  is or is not a werewolf.",
+
+ "You must use this power now: please type 'see <nickname>' (as a\
+ private message to me) to learn about one living player's true\
+ identity."]
+
+night_werewolf_texts = \
+["As the villagers sleep, you must now decide who you want to kill.",
+ "Please type 'kill <nickname>' (as a private message to me)."]
+
 
 # Printed when day begins.
 
@@ -71,12 +106,19 @@ villager_intro_text = "You're an ordinary villager.  When the time comes, be rea
 
 
 #---------------------------------------------------------------------
+# Actual code.
+#
+# WolfBot subclasses a basic 'bot' class, which subclasses a basic
+# IRC-client class, which uses the python-irc library.  Thanks to Joel
+# Rosdahl for the great framework!
+
 
 class WolfBot(SingleServerIRCBot):
   def __init__(self, channel, nickname, server, port=6667):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
     self.game_in_progress = 0
+    self.round = 0
     self.start()
 
     
@@ -107,7 +149,7 @@ class WolfBot(SingleServerIRCBot):
     self.wolves = []
     self.villagers = []
     self.seer = None
-
+    self.round = 1
 
   def say_public(self, text):
     "Print TEXT into public channel, for all to see."
@@ -130,7 +172,7 @@ class WolfBot(SingleServerIRCBot):
       self.say_public(text)
     
 
-  def start_game(self, e):
+  def start_game(self):
     "Initialize a werewolf game -- assign roles and notify all players."
 
     if self.game_in_progress:
@@ -148,6 +190,7 @@ class WolfBot(SingleServerIRCBot):
       else:
         # Randomly select two wolves and a seer.  Everyone else is a villager.
         self._reset_gamedata()
+        self.say_public("Please wait, assigning roles...")
         self.wolves.append(users.pop(random.randrange(len(users))))
         self.wolves.append(users.pop(random.randrange(len(users))))
         self.seer = users.pop(random.randrange(len(users)))
@@ -162,11 +205,17 @@ class WolfBot(SingleServerIRCBot):
           self.say_private(villager, villager_intro_text)
         
         self.say_public("A new game has begun!")
-        self.say_public(new_game_text)
+        for text in new_game_texts:
+          self.say_public(text)
         self.game_in_progress = 1
 
+        # Start game with a night cycle.
+        time.sleep(10)
+        self.night()
 
-  def end_game(self, e):
+
+
+  def end_game(self):
     "Quit a game in progress."
 
     if not self.game_in_progress:
@@ -177,24 +226,57 @@ class WolfBot(SingleServerIRCBot):
       self.game_in_progress = 0
 
 
+  def check_game_over(self):
+    "End the game if either villagers or werewolves have won."
+
+    # TODO:  if both wolves are dead,
+    #        or if len(self.wolves) == len(self.villagers)
+    self.end_game()
+
+
+  def night(self):
+    "Execute a NIGHT episode of gameplay."
+
+    # Give instructions to all the different players.
+    for text in night_game_texts:
+      self.say_public(text)
+    for text in night_seer_texts:
+      self.say_private(self.seer, text)
+    for text in night_werewolf_texts:
+      for wolf in self.wolves:
+        self.say_private(wolf, text)
+
+    # Now wait for our command-parser to receive private commands
+    # from the wolves and seer.
+    
+
+  def day(self):
+    "Execute a DAY episode of gameplay."
+
+    ### TODO:  write this.
+    pass
+
+
   def do_command(self, e, cmd, from_private=None):
     "Parse CMD, execute it, replying either publically or privately."
 
+    # This is our main parser of incoming commands.
     if cmd == "die":
       self.say_public("Ciao!")
       self.die()
 
     elif cmd == "start game":
-      self.start_game(e)
+      self.start_game()
           
     elif cmd == "end game":
-      self.end_game(e)
+      self.end_game()
                 
     elif cmd == "stats":
       # reply either to public channel, or to person who /msg'd
       chname, chobj = self.channels.items()[0]
       self.reply("There are " + `len(chobj.users())` + \
                  " players in this channel.", from_private)
+      self.reply("Game currently in round " + `self.round` + ".", from_private)
 
     else:
       # reply either to public channel, or to person who /msg'd
