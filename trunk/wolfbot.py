@@ -647,11 +647,18 @@ class WolfBot(SingleServerIRCBot):
       self.start_game(nm_to_n(e.source()))
     elif cmd == "votes":      
         non_voters = []
+        voters = []
         if self.villager_votes.keys():
           for n in self.live_players:
-              if not villager_votes.has_key(n):
+              if not self.villager_votes.has_key(n):
                 non_voters.append(n)
-                self.say_public("The following have no votes registered: %s dumpin dict: %s"%(non_voters,villager_votes))
+              else:
+                voters.append(n)
+
+          if non_voters:
+            self.say_public("The following have no votes registered: %s"%(non_voters))
+          else:
+            self.say_public("Everyone has voted.")
         else:
             self.say_public("Nobody has voted yet.")
 
