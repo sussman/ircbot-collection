@@ -47,6 +47,15 @@ from irclib import nm_to_n, nm_to_h, irc_lower
 
 new_game_text = "This is a game of paranoia and psychological intrigue.  Everyone in this group appears to be a common villager, but three of you are 'special'.  Two people are actually evil werewolves, seeking to kill everyone while concealing their identity.  And one of you is also a 'seer'; you have the ability to learn whether a specific person is or is not a werewolf.  The seer might not want to reveal his/her identify, as s/he becomes a prime werewolf target.  As a community, your group objective is to weed out the werewolves and lynch them both, before you're all killed in your sleep."
 
+# Printed to inform people of their initial roles.
+
+wolf_intro_text = "You are a WEREWOLF.  You want to kill everyone while they sleep.  Whatever happens, don't let the villagers know!"
+
+seer_intro_text = "You're not an ordinary villager, but are a SEER.  You'll have an occasional chance to privately learn whether someone is or isn't a werewolf.  Keep your identity secret, or the werewolves may kill you!"
+
+villager_intro_text = "You're an ordinary villager.  When the time comes, be ready to join the mob and lynch a werewolf."
+
+
 
 # Printed when night begins.
 
@@ -80,7 +89,8 @@ class WolfBot(SingleServerIRCBot):
 
 
   def on_privmsg(self, c, e):
-    self.do_command(e, e.arguments()[0])
+    from_nick = nm_to_n(e.source())
+    self.do_command(e, e.arguments()[0], from_nick)
 
 
   def on_pubmsg(self, c, e):
@@ -105,11 +115,20 @@ class WolfBot(SingleServerIRCBot):
     self.connection.privmsg(self.channel, text)
 
 
-  def say_private(self, nicklist, text):
-    "Send private messages of TEXT to every nick in NICKLIST."
+  def say_private(self, nick, text):
+    "Send private message of TEXT to NICK."
 
-    self.connection.privmsg_many(nicklist, text)
+    self.connection.privmsg(nick, text)
 
+
+  def reply(self, text, to_private=None):
+    "Send TEXT to either public channel or TO_PRIVATE nick (if defined)."
+
+    if to_private is not None:
+      self.say_private(to_private, text)
+    else:
+      self.say_public(text)
+    
 
   def start_game(self, e):
     "Initialize a werewolf game -- assign roles and notify all players."
@@ -136,10 +155,11 @@ class WolfBot(SingleServerIRCBot):
           self.villagers.append(user)
 
         # Private message each user, tell them their role.
-        # ### TODO.
-        self.say_public("Wolves are " + `self.wolves`)
-        self.say_public("Seer is " + `self.seer`)
-        self.say_public("Villagers are " + `self.villagers`)
+        self.say_private(self.seer, seer_intro_text)
+        for wolf in self.wolves:
+          self.say_private(wolf, wolf_intro_text)
+        for villager in self.villagers:
+          self.say_private(villager, villager_intro_text)
         
         self.say_public("A new game has begun!")
         self.say_public(new_game_text)
@@ -157,12 +177,9 @@ class WolfBot(SingleServerIRCBot):
       self.game_in_progress = 0
 
 
-  def do_command(self, e, cmd):
-    "Parse CMD and if recognized, execute it."
+  def do_command(self, e, cmd, from_private=None):
+    "Parse CMD, execute it, replying either publically or privately."
 
-    nick = nm_to_n(e.source())
-    c = self.connection
-    
     if cmd == "die":
       self.say_public("Ciao!")
       self.die()
@@ -174,14 +191,14 @@ class WolfBot(SingleServerIRCBot):
       self.end_game(e)
                 
     elif cmd == "stats":
+      # reply either to public channel, or to person who /msg'd
       chname, chobj = self.channels.items()[0]
-      users = chobj.users()
-      
-      self.say_public("There are " + `len(users)` + \
-                      " players in this channel.")
+      self.reply("There are " + `len(chobj.users())` + \
+                 " players in this channel.", from_private)
 
     else:
-      self.say_public("I don't understand.")
+      # reply either to public channel, or to person who /msg'd
+      self.reply("I don't understand.", from_private)
 
 
 
