@@ -45,9 +45,8 @@ defaultPort=6667
 # Printed when a game first starts:
 
 new_game_texts = \
-["This is a game of paranoia and psychological intrigue.",
-
- "Everyone in this group appears to be a common villager, but three of\
+["This is a game of paranoia and psychological intrigue.  Everyone \
+ in this group appears to be a common villager, but three of\
  you are 'special'.  Two people are actually evil werewolves, seeking\
  to kill everyone while concealing their identity.",
  
@@ -138,12 +137,19 @@ class WolfBot(SingleServerIRCBot):
     if new == self.seer:
       self.seer=new
 
-
   def _removeUser(self, nick):
+    found=0
+    for l in (self.live_players, self.wolves, self.villagers):
+      if nick not in l:
+        found=1
+    if not found:
+        self.say_public("There's nobody playing by that name. %s"%l)
+        return
+
+
     if(self.live_players): 
       if nick in self.live_players:
-        self.say_public("%s left while nobody was looking! I've removed this person from the game.."
-          %(nick))
+        self.say_public("%s left while nobody was looking!" %(nick))
         if(nick in self.live_players):
             self.live_players.remove(nick)
         if(nick in self.wolves):
@@ -252,7 +258,7 @@ class WolfBot(SingleServerIRCBot):
         self.live_players = users[:]
         
         # Randomly select two wolves and a seer.  Everyone else is a villager.
-        self.say_public("Please wait, assigning roles...")
+        self.say_public("A new game has begun! Please wait, assigning roles...")
         self.wolves.append(users.pop(random.randrange(len(users))))
         self.wolves.append(users.pop(random.randrange(len(users))))
         self.originalwolf1 = self.wolves[0]
@@ -271,7 +277,6 @@ class WolfBot(SingleServerIRCBot):
           time.sleep(3)
           self.say_private(villager, villager_intro_text)
         
-        self.say_public("A new game has begun!")
         for text in new_game_texts:
           self.say_public(text)
         self.game_in_progress = 1
@@ -301,11 +306,8 @@ class WolfBot(SingleServerIRCBot):
   def reveal_all_identities(self):
     "Print everyone's identities."
 
-    self.say_public(("*** The two wolves were %s and %s." % \
-                     (self.originalwolf1, self.originalwolf2)))
-    self.say_public(("*** The seer was %s." % self.seer))
-    self.say_public("*** Everyone else was a normal villager.")
-
+    self.say_public(("*** The two wolves were %s and %s, the seer was %s. Everyone else was a normal villager" % \
+                     (self.originalwolf1, self.originalwolf2, self.seer)))
 
   def check_game_over(self):
     """End the game if either villagers or werewolves have won.
@@ -455,7 +457,6 @@ class WolfBot(SingleServerIRCBot):
 
   def kill(self, from_private, who):
     "Allow a werewolf to express intent to 'kill' somebody."
-
     if self.time != "night":
       self.reply("Are you a werewolf?  In any case, it's not nighttime.",\
                  from_private)
@@ -620,10 +621,11 @@ class WolfBot(SingleServerIRCBot):
       target = None
     else:
       # assume that from_private comes from a 'privmsg' event.
-      target = from_private
+      target = from_private.strip()
     
-    cmds = cmd.split(" ")
+    cmds = cmd.strip().split(" ")
     numcmds = len(cmds)
+
 
     # Dead players should not speak.
     if from_private in self.dead_players:
@@ -655,9 +657,9 @@ class WolfBot(SingleServerIRCBot):
       self.connection.nick(cmds[1])
     elif cmds[0] == "see":
       if numcmds == 2:
-        viewee = self.match_name(cmds[1])
+        viewee = self.match_name(cmds[1].strip())
         if viewee is not None:        
-          self.see(target, viewee)
+          self.see(target, viewee.strip())
         else:
           self.reply("See who?", target)
       else:
@@ -665,7 +667,7 @@ class WolfBot(SingleServerIRCBot):
 
     elif cmds[0] == "kill":
       if numcmds == 2:
-        killee = self.match_name(cmds[1])
+        killee = self.match_name(cmds[1].strip())
         if killee is not None:
           self.kill(target, killee)
         else:
@@ -677,7 +679,7 @@ class WolfBot(SingleServerIRCBot):
       if numcmds == 2:
         lynchee = self.match_name(cmds[1])
         if lynchee is not None:
-          self.lynch_vote(nm_to_n(e.source()), lynchee)
+          self.lynch_vote(nm_to_n(e.source()), lynchee.strip())
         else:
           self.reply("Lynch who?", target)
       else:
