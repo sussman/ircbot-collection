@@ -40,7 +40,7 @@ from threading import Thread, Event
 # General texts for narrating the game.  Change these global strings
 # however you wish, without having to muck with the core logic!
 
-minUsers=3
+minUsers=7
 defaultPort=6667
 
 # Printed when a game first starts:
