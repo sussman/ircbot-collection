@@ -77,7 +77,7 @@ villager_intro_text = \
 night_game_texts = \
 ["Darkness falls:  it is NIGHT.",
  "The whole village sleeps peacefully...",
- "Everyone relax and wait for morning."]
+ "Everyone relax and wait for morning... I'll tell you when night is over."]
 
 # Printed when wolves and villager get nighttime instructions:
 
@@ -152,8 +152,7 @@ class WolfBot(SingleServerIRCBot):
     self.villagers = []
     self.seer = None
     self.seer_target = None
-    self.wolves_target = None
-    self.wolves_votes = {}
+    self.wolf_target = None
     self.villager_votes = {}
 
 
@@ -297,11 +296,48 @@ class WolfBot(SingleServerIRCBot):
     self.time = "day"
 
     ### TODO:  write this.
-    pass
+    print "It's now daytime."
+    ### describe who's dead.  kill someone.
+    self.seer_target = None
+    serf.wolf_target = None
+    
+
+
+  def see(self, from_private, who):
+    "Allow a seer to 'see' somebody."
+
+    if self.time != "night":
+      self.reply("Are you a seer?  In any case, it's not nighttime.",\
+                 from_private)
+    else:
+      if from_private != self.seer:
+        self.reply("Huh?", from_private)
+      else:
+        if who not in self.live_players:          
+          self.reply("That player either doesn't exist, or is dead.",\
+                     from_private)
+        else:
+          if self.seer_target is not None:
+            self.reply("You've already had your vision for tonight.",\
+                       from_private)
+          else:
+            self.seer_target = who
+            if who in self.wolves:
+              self.reply("You're sure that player is a werewolf!",\
+                         from_private)
+            else:
+              self.reply("You're sure that player is a normal villager.",\
+                         from_private)
+              if self.check_night_done():
+                self.day()
+
 
 
   def do_command(self, e, cmd, from_private=None):
     "Parse CMD, execute it, replying either publically or privately."
+
+    cmds = cmd.split(" ")
+    numcmds = len(cmds)
 
     # This is our main parser of incoming commands.
     if cmd == "die":
@@ -321,21 +357,27 @@ class WolfBot(SingleServerIRCBot):
                  " players in this channel.", from_private)
       self.reply("Game currently in round " + `self.round` + ".", from_private)
 
+    elif cmds[0] == "see":
+      if numcmds == 2:
+        self.see(from_private, cmds[1])
+      else:
+        self.reply("See who?", from_private)
+
     else:
+      # unknown command:  respond appropriately.
+      
       # reply either to public channel, or to person who /msg'd
       if self.time is None:
         self.reply("I don't understand.", from_private)
-      elsif self.time = "night":
+      elif self.time == "night":
         self.reply("SSSHH!  It's night, everyone's asleep!", from_private)
-      elsif self.time = "day":
+      elif self.time == "day":
         self.reply("Hm?  Get back to lynching.", from_private)
 
 
 def main():
   
   if len(sys.argv) != 4:
-    print "argv is ", sys.argv
-    print "len is ", len(sys.argv)
     print "Usage: wolfbot.py <server[:port]> <channel> <nickname>"
     sys.exit(1)
 
