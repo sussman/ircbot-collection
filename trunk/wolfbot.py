@@ -91,6 +91,7 @@ night_seer_texts = \
 
 night_werewolf_texts = \
 ["As the villagers sleep, you must now decide who you want to kill.",
+ "You and the other werewolf should discuss (privately) and choose a victim.",
  "Please type 'kill <nickname>' (as a private message to me)."]
 
 
@@ -153,6 +154,7 @@ class WolfBot(SingleServerIRCBot):
     self.seer = None
     self.seer_target = None
     self.wolf_target = None
+    self.wolves_locked = 0
     self.villager_votes = {}
 
 
@@ -258,14 +260,7 @@ class WolfBot(SingleServerIRCBot):
       else:
         seer_done = 1
 
-    # Are the wolves done killing?  The target is only set when
-    # both wolves agree on somebody.
-    if self.wolf_target is None:
-      wolves_done = 0
-    else:
-      wolves_done = 1
-
-    if wolves_done and seer_done:
+    if self.wolves_locked and seer_done:
       return 1
     else:
       return 0
@@ -285,9 +280,14 @@ class WolfBot(SingleServerIRCBot):
     for text in night_werewolf_texts:
       for wolf in self.wolves:
         self.say_private(wolf, text)
-
-    # Now wait for our command-parser to receive private commands
-    # from the wolves and seer.
+    self.say_private(self.wolves[0],\
+                     ("The other werewolf is %s.  Confer privately."\
+                      % self.wolves[1]))
+    self.say_private(self.wolves[1],\
+                     ("The other werewolf is %s.  Confer privately."\
+                      % self.wolves[0]))
+    # ...now wait for our command-parser to receive private commands
+    # from the wolves and seer...
     
 
   def day(self):
@@ -295,12 +295,14 @@ class WolfBot(SingleServerIRCBot):
 
     self.time = "day"
 
-    ### TODO:  write this.
-    print "It's now daytime."
-    ### describe who's dead.  kill someone.
+    # Clear all the nighttime voting variables:
     self.seer_target = None
-    serf.wolf_target = None
-    
+    self.wolf_target = None
+    self.wolves_locked = 0
+
+    self.say_pubilc("DAY Breaks!  Sunlight pierces the sky.")
+    ### describe who's dea
+
 
 
   def see(self, from_private, who):
@@ -332,6 +334,45 @@ class WolfBot(SingleServerIRCBot):
                 self.day()
 
 
+  def kill(self, from_private, who):
+    "Allow a werewolf to express intent to 'kill' somebody."
+
+    if self.time != "night":
+      self.reply("Are you a werewolf?  In any case, it's not nighttime.",\
+                 from_private)
+    else:
+      if from_private not in self.wolves:
+        self.reply("Huh?", from_private)
+      else:
+        if who not in self.live_players:          
+          self.reply("That player either doesn't exist, or is dead.",\
+                     from_private)
+        else:
+          if len(self.wolves) == 2:
+            # two wolves are alive:
+            if self.wolf_target is None:
+              self.wolf_target = who
+              self.reply("Your vote is acknowledged, waiting for other wolf.",\
+                         from_private)              
+            elif self.wolf_target == who:
+              self.reply("It is done.  You and the other werewolf agree.",\
+                         from_private)
+              self.wolves_locked = 1
+              if self.check_night_done():
+                self.day()
+            else:
+              self.wolf_target = who
+              self.reply("Hm, I sense disagreement or ambivalence.",\
+                         from_private)
+              self.reply("You two wolves should decide on one target.",\
+                         from_private)
+          else:
+            # only one wolf alive, no need to agree with anyone.
+            self.wolf_target = who
+            self.wolves_locked = 1
+            if self.check_night_done():
+              self.day()
+
 
   def do_command(self, e, cmd, from_private=None):
     "Parse CMD, execute it, replying either publically or privately."
@@ -362,6 +403,12 @@ class WolfBot(SingleServerIRCBot):
         self.see(from_private, cmds[1])
       else:
         self.reply("See who?", from_private)
+
+    elif cmds[0] == "kill":
+      if numcmds == 2:
+        self.kill(from_private, cmds[1])
+      else:
+        self.reply("Kill who?", from_private)
 
     else:
       # unknown command:  respond appropriately.
