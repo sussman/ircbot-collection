@@ -513,6 +513,21 @@ class WolfBot(SingleServerIRCBot):
     self.say_public(msg)
 
 
+  def match_name(self, nick):
+    """Match NICK to a username in users(), insensitively.  Return
+    matching nick, or None if no match."""
+
+    chname, chobj = self.channels.items()[0]
+    users = chobj.users()
+    users.remove(self._nickname)
+
+    for user in users:
+      if user.upper() == nick.upper():
+        return user
+    return None
+
+
+
   def lynch_vote(self, lyncher, lynchee):
     "Register a vote from LYNCHER to lynch LYNCHEE."
 
@@ -587,19 +602,31 @@ class WolfBot(SingleServerIRCBot):
 
     elif cmds[0] == "see":
       if numcmds == 2:
-        self.see(target, cmds[1])
+        viewee = self.match_name(cmds[1])
+        if viewee is not None:        
+          self.see(target, viewee)
+        else:
+          self.reply("See who?", target)
       else:
         self.reply("See who?", target)
 
     elif cmds[0] == "kill":
       if numcmds == 2:
-        self.kill(target, cmds[1])
+        killee = self.match_name(cmds[1])
+        if killee is not None:
+          self.kill(target, killee)
+        else:
+          self.reply("Kill who?", target)
       else:
         self.reply("Kill who?", target)
 
     elif cmds[0] == "lynch":
       if numcmds == 2:
-        self.lynch_vote(nm_to_n(e.source()), cmds[1])
+        lynchee = self.match_name(cmds[1])
+        if lynchee is not None:
+          self.lynch_vote(nm_to_n(e.source()), lynchee)
+        else:
+          self.reply("Lynch who?", target)
       else:
         self.reply("Lynch who?", target)
 
