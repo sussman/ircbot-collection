@@ -374,14 +374,29 @@ class WolfBot(SingleServerIRCBot):
               self.day()
 
 
+  def kill_player(self, player):
+    "Make a player dead."
+
+    self.live_players.remove(player)
+    self.dead_players.append(player)
+    self.say_public(("(%s is now dead, and should stay quiet.") % player)
+    self.say_private(player, "You are now DEAD.  You may observe the game,")
+    self.say_private(player, "but please stay quiet until the game is over.")
+
+    
+
   def do_command(self, e, cmd, from_private=None):
     "Parse CMD, execute it, replying either publically or privately."
 
     cmds = cmd.split(" ")
     numcmds = len(cmds)
 
+    # Dead players should not speak.
+    if from_private in self.dead_players:
+      self.reply("Please -- dead players should keep quiet.", from_private)
+
     # This is our main parser of incoming commands.
-    if cmd == "die":
+    elif cmd == "die":
       self.say_public("Ciao!")
       self.die()
 
