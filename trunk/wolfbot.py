@@ -118,7 +118,7 @@ class WolfBot(SingleServerIRCBot):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
     self.game_in_progress = 0
-    self.round = 0
+    self._reset_gamedata()
     self.start()
 
     
@@ -144,12 +144,18 @@ class WolfBot(SingleServerIRCBot):
 
 
   def _reset_gamedata(self):
+    self.time = None
+    self.round = 1
     self.live_players = []
     self.dead_players = []
     self.wolves = []
     self.villagers = []
     self.seer = None
-    self.round = 1
+    self.seer_target = None
+    self.wolves_target = None
+    self.wolves_votes = {}
+    self.villager_votes = {}
+
 
   def say_public(self, text):
     "Print TEXT into public channel, for all to see."
@@ -188,8 +194,13 @@ class WolfBot(SingleServerIRCBot):
         self.say_public("Sorry, you need at least 5 players in the channel.")
 
       else:
-        # Randomly select two wolves and a seer.  Everyone else is a villager.
+
         self._reset_gamedata()
+        
+        # Everyone starts out alive.
+        self.live_players = users[:]
+        
+        # Randomly select two wolves and a seer.  Everyone else is a villager.
         self.say_public("Please wait, assigning roles...")
         self.wolves.append(users.pop(random.randrange(len(users))))
         self.wolves.append(users.pop(random.randrange(len(users))))
@@ -226,6 +237,7 @@ class WolfBot(SingleServerIRCBot):
       self.game_in_progress = 0
 
 
+
   def check_game_over(self):
     "End the game if either villagers or werewolves have won."
 
@@ -234,8 +246,37 @@ class WolfBot(SingleServerIRCBot):
     self.end_game()
 
 
+
+  def check_night_done(self):
+    "Check if nighttime is over.  Return 1 if night is done, 0 otherwise."
+
+    # Is the seer done seeing?
+    if self.seer not in self.live_players:
+      seer_done = 1
+    else:
+      if self.seer_target is None:
+        seer_done = 0
+      else:
+        seer_done = 1
+
+    # Are the wolves done killing?  The target is only set when
+    # both wolves agree on somebody.
+    if self.wolf_target is None:
+      wolves_done = 0
+    else:
+      wolves_done = 1
+
+    if wolves_done and seer_done:
+      return 1
+    else:
+      return 0
+        
+        
+
   def night(self):
     "Execute a NIGHT episode of gameplay."
+
+    self.time = "night"
 
     # Give instructions to all the different players.
     for text in night_game_texts:
@@ -252,6 +293,8 @@ class WolfBot(SingleServerIRCBot):
 
   def day(self):
     "Execute a DAY episode of gameplay."
+
+    self.time = "day"
 
     ### TODO:  write this.
     pass
@@ -280,8 +323,12 @@ class WolfBot(SingleServerIRCBot):
 
     else:
       # reply either to public channel, or to person who /msg'd
-      self.reply("I don't understand.", from_private)
-
+      if self.time is None:
+        self.reply("I don't understand.", from_private)
+      elsif self.time = "night":
+        self.reply("SSSHH!  It's night, everyone's asleep!", from_private)
+      elsif self.time = "day":
+        self.reply("Hm?  Get back to lynching.", from_private)
 
 
 def main():
