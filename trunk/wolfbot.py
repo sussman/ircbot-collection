@@ -195,7 +195,8 @@ class WolfBot(SingleServerIRCBot):
 
       if len(users) < 7:
         self.say_public("Sorry, to start a game, there must be " + \
-                        "at least 7 players in the channel.")
+                        "at least 7 players in the channel (excluding me).")
+        self.say_public(("I count only %d players right now." % len(users)))
 
       else:
 
@@ -578,11 +579,11 @@ class WolfBot(SingleServerIRCBot):
       
       # reply either to public channel, or to person who /msg'd
       if self.time is None:
-        self.reply("I don't understand.", from_private)
+        self.reply("I don't understand.", target)
       elif self.time == "night":
-        self.reply("SSSHH!  It's night, everyone's asleep!", from_private)
+        self.reply("SSSHH!  It's night, everyone's asleep!", target)
       elif self.time == "day":
-        self.reply("Hm?  Get back to lynching.", from_private)
+        self.reply("Hm?  Get back to lynching.", target)
 
 
 def main():
