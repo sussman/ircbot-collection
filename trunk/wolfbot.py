@@ -137,10 +137,11 @@ class WolfBot(SingleServerIRCBot):
 
 
   def on_pubmsg(self, c, e):
+    from_nick = nm_to_n(e.source())
     a = string.split(e.arguments()[0], ":", 1)
     if len(a) > 1 \
            and irc_lower(a[0]) == irc_lower(self.connection.get_nickname()):
-      self.do_command(e, string.strip(a[1]))
+      self.do_command(e, string.strip(a[1]), from_nick)
     return
 
 
@@ -192,8 +193,9 @@ class WolfBot(SingleServerIRCBot):
       users = chobj.users()
       users.remove(self._nickname)
 
-      if len(users) < 5:
-        self.say_public("Sorry, you need at least 5 players in the channel.")
+      if len(users) < 7:
+        self.say_public("Sorry, to start a game, there must be " + \
+                        "at least 7 players in the channel.")
 
       else:
 
@@ -242,14 +244,15 @@ class WolfBot(SingleServerIRCBot):
       self.game_in_progress = 0
 
 
-
   def check_game_over(self):
-    "End the game if either villagers or werewolves have won."
+    """End the game if either villagers or werewolves have won.
+    Return 1 if game is over, 0 otherwise."""
 
     # If all wolves are dead, the villagers win.
     if len(self.wolves) == 0:
       self.say_public("The wolves are dead!  The VILLAGERS have WON.")
-      self.end_game()      
+      self.end_game()
+      return 1
 
     # If the number of non-wolves is the same as the number of wolves,
     # then the wolves win.
@@ -261,7 +264,9 @@ class WolfBot(SingleServerIRCBot):
       msg = msg + "The WEREWOLVES have WON."
       self.say_public(msg)    
       self.end_game()
+      return 1
 
+    return 0
 
 
   def check_night_done(self):
@@ -285,7 +290,6 @@ class WolfBot(SingleServerIRCBot):
   def night(self):
     "Declare a NIGHT episode of gameplay."
 
-    self.check_game_over()
     self.time = "night"
 
     # Clear any daytime variables
@@ -293,21 +297,24 @@ class WolfBot(SingleServerIRCBot):
     self.tally = {}
 
     # Declare nighttime.
+    self.print_alive()
     for text in night_game_texts:
       self.say_public(text)
 
     # Give private instructions to wolves and seer.
-    for text in night_seer_texts:
-      self.say_private(self.seer, text)
+    if self.seer in self.live_players:
+      for text in night_seer_texts:
+        self.say_private(self.seer, text)
     for text in night_werewolf_texts:
       for wolf in self.wolves:
         self.say_private(wolf, text)
-    self.say_private(self.wolves[0],\
-                     ("The other werewolf is %s.  Confer privately."\
-                      % self.wolves[1]))
-    self.say_private(self.wolves[1],\
-                     ("The other werewolf is %s.  Confer privately."\
-                      % self.wolves[0]))
+    if len(self.wolves) >= 2:
+      self.say_private(self.wolves[0],\
+                       ("The other werewolf is %s.  Confer privately."\
+                        % self.wolves[1]))
+      self.say_private(self.wolves[1],\
+                       ("The other werewolf is %s.  Confer privately."\
+                        % self.wolves[0]))
 
     # ... bot is now in 'night' mode;  goes back to doing nothing but
     # waiting for commands.
@@ -316,28 +323,27 @@ class WolfBot(SingleServerIRCBot):
   def day(self):
     "Declare a DAY episode of gameplay."
 
-    self.check_game_over()
     self.time = "day"
 
     # Discover the dead wolf victim.
     self.say_public("DAY Breaks!  Sunlight pierces the sky.")
     self.say_public(("The village awakes in horror..." + \
                      "to find the mutilated body of %s!!"\
-                     % self.wolf_target))
-    self.say_public("This player is now DEAD.")
-    self.kill_player(self.wolf_target)
+                     % self.wolf_target.upper()))
 
-    # Clear all the nighttime voting variables:
-    self.seer_target = None
-    self.wolf_target = None
-    self.wolf_votes = {}
-
-    # Give daytime instructions.
-    for text in day_game_texts:
-      self.say_public(text)
-    
-    # ... bot is now in 'day' mode;  goes back to doing nothing but
-    # waiting for commands.
+    if not self.kill_player(self.wolf_target):
+      # Clear all the nighttime voting variables:
+      self.seer_target = None
+      self.wolf_target = None
+      self.wolf_votes = {}
+      
+      # Give daytime instructions.
+      self.print_alive()
+      for text in day_game_texts:
+        self.say_public(text)
+  
+      # ... bot is now in 'day' mode;  goes back to doing nothing but
+      # waiting for commands.
 
 
 
@@ -366,8 +372,8 @@ class WolfBot(SingleServerIRCBot):
             else:
               self.reply("You're sure that player is a normal villager.",\
                          from_private)
-              if self.check_night_done():
-                self.day()
+            if self.check_night_done():
+              self.day()
 
 
   def kill(self, from_private, who):
@@ -412,7 +418,7 @@ class WolfBot(SingleServerIRCBot):
 
 
   def kill_player(self, player):
-    "Make a player dead."
+    "Make a player dead.  Return 1 if game is over, 0 otherwise."
 
     self.live_players.remove(player)
     self.dead_players.append(player)
@@ -425,11 +431,14 @@ class WolfBot(SingleServerIRCBot):
     if player == self.seer:
       self.say_public(\
         "Examining the body, you notice that this player was the SEER.")
-    
-    self.say_public(("(%s is now dead, and should stay quiet.)") % player)
 
-    self.say_private(player, "You are now DEAD.  You may observe the game,")
-    self.say_private(player, "but please stay quiet until the game is over.")
+    if self.check_game_over():
+      return 1
+    else:
+      self.say_public(("(%s is now dead, and should stay quiet.)") % player)
+      self.say_private(player, "You are now DEAD.  You may observe the game,")
+      self.say_private(player, "but please stay quiet until the game is over.")
+      return 0
 
 
   def tally_votes(self):
@@ -460,26 +469,37 @@ class WolfBot(SingleServerIRCBot):
     "Publically display the vote tally."
 
     majority_needed = (len(self.live_players)/2) + 1 
-    msg = "%d votes needed for a majority.  Current vote tally: "
+    msg = ("%d votes needed for a majority.  Current vote tally: " \
+           % majority_needed)
     for lynchee in self.tally.keys():
-      msg = msg + ("(%s : %d) " % lynchee, self.tally[lynchee])
+      msg = msg + ("(%s : %d vote(s)) " % (lynchee, self.tally[lynchee]))
     self.say_public(msg)
+
       
+  def print_alive(self):
+    "Declare who's still alive."
+    
+    msg = "The following players are still alive: "
+    msg = msg + `self.live_players`
+    self.say_public(msg)
+
 
   def lynch_vote(self, lyncher, lynchee):
     "Register a vote from LYNCHER to lynch LYNCHEE."
 
     # sanity checks
     if self.time != "day":
-      self.reply("Sorry, lynching only happens during the day.", lyncher)
+      self.reply("Sorry, lynching only happens during the day.")
     elif lyncher not in self.live_players:
-      self.reply("Um, only living players can vote to lynch someone.", lyncher)
+      self.reply("Um, only living players can vote to lynch someone.")
     elif lynchee not in self.live_players:
-      self.reply("Um, only living players can be lynched.", lyncher)
+      self.reply("Um, only living players can be lynched.")
+    elif lynchee == lyncher:
+      self.reply("Um, you can't lynch yourself.")
 
     else:
       self.villager_votes[lyncher] = lynchee
-      self.say_public(("%s has voted to lynch %s!" % lyncher, lynchee))
+      self.say_public(("%s has voted to lynch %s!" % (lyncher, lynchee)))
       self.tally_votes()
       victim = self.check_for_majority()
       if victim is None:
@@ -487,21 +507,32 @@ class WolfBot(SingleServerIRCBot):
       else:
         self.say_public(("The majority has voted to lynch %s!!" % victim))
         self.say_public("Mob violence ensues.  This player is now DEAD.")
-        self.kill_player(victim)
-        # Day is done;  flip bot back into night-mode.
-        self.sleep(5)
-        self.night()
+        if not self.kill_player(victim):
+          # Day is done;  flip bot back into night-mode.
+          time.sleep(5)
+          self.night()
 
 
-  def do_command(self, e, cmd, from_private=None):
-    "Parse CMD, execute it, replying either publically or privately."
-
+  def do_command(self, e, cmd, from_private):
+    """This is the function called whenever someone sends a public or
+    private message addressed to the bot. (e.g. "bot: blah").  Parse
+    the CMD, execute it, then reply either to public channel or via
+    /msg, based on how the command was received.  E is the original
+    event, and FROM_PRIVATE is the nick that sent the message."""
+    
+    if e.eventtype() == "pubmsg":
+      # self.reply() sees 'from_private = None' and sends to public channel.
+      target = None
+    else:
+      # assume that from_private comes from a 'privmsg' event.
+      target = from_private
+    
     cmds = cmd.split(" ")
     numcmds = len(cmds)
 
     # Dead players should not speak.
     if from_private in self.dead_players:
-      self.reply("Please -- dead players should keep quiet.", from_private)
+      self.reply("Please -- dead players should keep quiet.", target)
 
     # This is our main parser of incoming commands.
     elif cmd == "die":
@@ -515,29 +546,31 @@ class WolfBot(SingleServerIRCBot):
       self.end_game()
                 
     elif cmd == "stats":
-      # reply either to public channel, or to person who /msg'd
-      chname, chobj = self.channels.items()[0]
-      self.reply("There are " + `len(chobj.users())` + \
-                 " players in this channel.", from_private)
-      self.reply("Game currently in round " + `self.round` + ".", from_private)
+      if self.game_in_progress:
+        self.print_alive()
+        if self.time == "day":
+          self.tally_votes()
+          self.print_tally()
+      else:
+        self.reply("No game is in progress.", target)
 
     elif cmds[0] == "see":
       if numcmds == 2:
-        self.see(from_private, cmds[1])
+        self.see(target, cmds[1])
       else:
-        self.reply("See who?", from_private)
+        self.reply("See who?", target)
 
     elif cmds[0] == "kill":
       if numcmds == 2:
-        self.kill(from_private, cmds[1])
+        self.kill(target, cmds[1])
       else:
-        self.reply("Kill who?", from_private)
+        self.reply("Kill who?", target)
 
     elif cmds[0] == "lynch":
       if numcmds == 2:
-        self.lynch_vote(from_private, cmds[1])
+        self.lynch_vote(nm_to_n(e.source()), cmds[1])
       else:
-        self.reply("Lynch who?", from_private)
+        self.reply("Lynch who?", target)
 
 
     else:
