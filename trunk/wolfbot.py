@@ -39,7 +39,7 @@ from irclib import nm_to_n, nm_to_h, irc_lower
 # General texts for narrating the game.  Change these global strings
 # however you wish, without having to muck with the core logic!
 
-minUsers=7
+minUsers=3
 defaultPort=6667
 
 # Printed when a game first starts:
@@ -647,7 +647,7 @@ class WolfBot(SingleServerIRCBot):
       self.start_game(nm_to_n(e.source()))
     elif len(cmds)>1 and cmds[0]=="del":
         for nick in cmds[1:]:
-            self._removeUser(nicks)
+            self._removeUser(nick)
 
     elif cmd == "end game":
       self.end_game(nm_to_n(e.source()))
