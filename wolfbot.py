@@ -20,8 +20,6 @@ This is an example bot that uses the SingleServerIRCBot class from
 ircbot.py.  The bot enters a channel and listens for commands in
 private messages and channel traffic.  Commands in channel messages
 are given by prefixing the text by the bot name followed by a colon.
-It also responds to DCC CHAT invitations and echos data sent in such
-sessions.
 
 The known commands are:
 
@@ -39,16 +37,37 @@ import sys, string, random
 from ircbot import SingleServerIRCBot
 from irclib import nm_to_n, nm_to_h, irc_lower
 
+#---------------------------------------------------------------------
+
+# General texts for narrating the game.  Change these global strings
+# however you wish.
+
+
+# Printed when a game first starts.
+
+new_game_text = "This is a game of paranoia and psychological intrigue.  Everyone in this group appears to be a common villager, but three of you are 'special'.  Two people are actually evil werewolves, seeking to kill everyone while concealing their identity.  And one of you is also a 'seer'; you have the ability to learn whether a specific person is or is not a werewolf.  The seer might not want to reveal his/her identify, as s/he becomes a prime werewolf target.  As a community, your group objective is to weed out the werewolves and lynch them both, before you're all killed in your sleep."
+
+
+# Printed when night begins.
+
+# Printed when day begins.
+
+# Printed when the wolves kill somebody (night ends).
+
+# Printed when a lynching happens.
+
+# Printed when the wolves win.
+
+# Printed when the villagers win.
+
+
+#---------------------------------------------------------------------
+
 class WolfBot(SingleServerIRCBot):
   def __init__(self, channel, nickname, server, port=6667):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
     self.game_in_progress = 0
-    self.live_players = []
-    self.dead_players = []
-    self.wolves = []
-    self.seer = None
-    self.roledict = {}
     self.start()
     
   def on_nicknameinuse(self, c, e):
@@ -67,22 +86,46 @@ class WolfBot(SingleServerIRCBot):
       self.do_command(e, string.strip(a[1]))
     return
 
+  def _reset_gamedata(self):
+    self.live_players = []
+    self.dead_players = []
+    self.wolves = []
+    self.villagers = []
+    self.seer = None
+
   def start_game(self, e):
     nick = nm_to_n(e.source())
     c = self.connection
     if self.game_in_progress:
       c.notice(nick,
-               "A game is already in progress.  Use 'quit game' to end it.")
+               "A game is already in progress.  Use 'end game' to end it.")
 
     else:
       chname, chobj = self.channels.items()[0]
       users = chobj.users()
-      wolf1 = users.pop(random.randrange(len(users)))
+      users.remove(self._nickname)
 
-      # Private message each user
+      if len(users) < 5:
+        c.notice(nick, "Sorry, you need at least 5 players in the channel.")
 
-      c.notice(nick, "The game has started.")
-      self.game_in_progress = 1
+      else:
+        # Randomly select two wolves and a seer.  Everyone else is a villager.
+        self._reset_gamedata()
+        self.wolves.append(users.pop(random.randrange(len(users))))
+        self.wolves.append(users.pop(random.randrange(len(users))))
+        self.seer = users.pop(random.randrange(len(users)))
+        for user in users:
+          self.villagers.append(user)
+
+        # Private message each user, tell them their role.
+        # ### TODO.
+        c.notice(nick, "Wolves are " + `self.wolves`)
+        c.notice(nick, "Seer is " + `self.seer`)
+        c.notice(nick, "Villagers are " + `self.villagers`)
+        
+        c.notice(nick, "A new game has begun!")
+        c.notice(nick, new_game_text)
+        self.game_in_progress = 1
 
   def end_game(self, e):
     nick = nm_to_n(e.source())
