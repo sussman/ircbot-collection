@@ -126,6 +126,16 @@ class WolfBot(SingleServerIRCBot):
   def on_nicknameinuse(self, c, e):
     c.nick(c.get_nickname() + "_")
 
+  def _renameUser(self, old, new):
+    for list in (self.live_players, self.wolves, self.villagers):
+      if(old in list):
+        print "removing %s from %s"%(old,list)
+        list.append(new)
+        list.remove(old)
+    if new == self.seer:
+      self.seer=new
+
+
   def _removeUser(self, nick):
     if(self.live_players): 
       if nick in self.live_players:
@@ -147,6 +157,9 @@ class WolfBot(SingleServerIRCBot):
 
   def on_quit(self, c, e):
     self._removeUser(nm_to_n(e.source()))
+
+  def on_nick(self, c, e):
+    self._renameUser(nm_to_n(e.source()), e.target())
 
       
   def on_welcome(self, c, e):
@@ -617,7 +630,7 @@ class WolfBot(SingleServerIRCBot):
 
     if cmd == "help":
         self.reply(\
-        "Valid commands: 'help', 'stats', 'start game', 'end game'", target)
+        "Valid commands: 'help', 'stats', 'start game', 'end game', 'renick'", target)
 
     elif cmd == "stats" or cmd == "status":
       if self.game_in_progress:
@@ -632,8 +645,8 @@ class WolfBot(SingleServerIRCBot):
       self.start_game(nm_to_n(e.source()))
     elif cmd == "end game":
       self.end_game(nm_to_n(e.source()))
-                
-
+    elif len(cmds)==2 and cmds[0] == "renick":
+      self.connection.nick(cmds[1])
     elif cmds[0] == "see":
       if numcmds == 2:
         viewee = self.match_name(cmds[1])
@@ -670,7 +683,7 @@ class WolfBot(SingleServerIRCBot):
       
       # reply either to public channel, or to person who /msg'd
       if self.time is None:
-        self.reply("I don't understand.", target)
+        self.reply("I don't understand '%s'."%(cmd), target)
       elif self.time == "night":
         self.reply("SSSHH!  It's night, everyone's asleep!", target)
       elif self.time == "day":
