@@ -221,7 +221,7 @@ class WolfBot(SingleServerIRCBot):
 
   def say_private(self, nick, text):
     "Send private message of TEXT to NICK."
-    self.queue.send(nick, text)
+    self.queue.send(text,nick)
 
 
   def reply(self, text, to_private=None):
@@ -632,7 +632,7 @@ class WolfBot(SingleServerIRCBot):
 
     if cmd == "help":
         self.reply(\
-        "Valid commands: 'help', 'stats', 'start game', 'end game', 'renick', 'del'", target)
+        "Valid commands: 'help', 'stats', 'start game', 'end game', 'renick', 'del', votes", target)
 
     elif cmd == "stats" or cmd == "status":
       if self.game_in_progress:
@@ -644,6 +644,16 @@ class WolfBot(SingleServerIRCBot):
         self.reply("No game is in progress.", target)
     elif cmd == "start game":      
       self.start_game(nm_to_n(e.source()))
+    elif cmd == "votes":      
+        non_voters = []
+        for n in tally.keys():
+            if not tally[n]:
+                non_voters.append(n)
+        if non_voters:
+            self.say_public("The following have no votes registered: %s"%non_voters)
+        else:
+            self.say_public("Everyone has voted. wtf?!")
+
     elif len(cmds)>1 and cmds[0]=="del":
         for nick in cmds[1:]:
             self._removeUser(nick)
