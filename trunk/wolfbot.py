@@ -69,15 +69,19 @@ class WolfBot(SingleServerIRCBot):
     self.channel = channel
     self.game_in_progress = 0
     self.start()
+
     
   def on_nicknameinuse(self, c, e):
     c.nick(c.get_nickname() + "_")
+
       
   def on_welcome(self, c, e):
     c.join(self.channel)
 
+
   def on_privmsg(self, c, e):
     self.do_command(e, e.arguments()[0])
+
 
   def on_pubmsg(self, c, e):
     a = string.split(e.arguments()[0], ":", 1)
@@ -86,6 +90,7 @@ class WolfBot(SingleServerIRCBot):
       self.do_command(e, string.strip(a[1]))
     return
 
+
   def _reset_gamedata(self):
     self.live_players = []
     self.dead_players = []
@@ -93,12 +98,25 @@ class WolfBot(SingleServerIRCBot):
     self.villagers = []
     self.seer = None
 
+
+  def say_public(self, text):
+    "Print TEXT into public channel, for all to see."
+
+    self.connection.privmsg(self.channel, text)
+
+
+  def say_private(self, nicklist, text):
+    "Send private messages of TEXT to every nick in NICKLIST."
+
+    self.connection.privmsg_many(nicklist, text)
+
+
   def start_game(self, e):
-    nick = nm_to_n(e.source())
-    c = self.connection
+    "Initialize a werewolf game -- assign roles and notify all players."
+
     if self.game_in_progress:
-      c.notice(nick,
-               "A game is already in progress.  Use 'end game' to end it.")
+      self.say_public(\
+        "A game is already in progress.  Use 'end game' to end it.")
 
     else:
       chname, chobj = self.channels.items()[0]
@@ -106,7 +124,7 @@ class WolfBot(SingleServerIRCBot):
       users.remove(self._nickname)
 
       if len(users) < 5:
-        c.notice(nick, "Sorry, you need at least 5 players in the channel.")
+        self.say_public("Sorry, you need at least 5 players in the channel.")
 
       else:
         # Randomly select two wolves and a seer.  Everyone else is a villager.
@@ -119,30 +137,34 @@ class WolfBot(SingleServerIRCBot):
 
         # Private message each user, tell them their role.
         # ### TODO.
-        c.notice(nick, "Wolves are " + `self.wolves`)
-        c.notice(nick, "Seer is " + `self.seer`)
-        c.notice(nick, "Villagers are " + `self.villagers`)
+        self.say_public("Wolves are " + `self.wolves`)
+        self.say_public("Seer is " + `self.seer`)
+        self.say_public("Villagers are " + `self.villagers`)
         
-        c.notice(nick, "A new game has begun!")
-        c.notice(nick, new_game_text)
+        self.say_public("A new game has begun!")
+        self.say_public(new_game_text)
         self.game_in_progress = 1
 
+
   def end_game(self, e):
-    nick = nm_to_n(e.source())
-    c = self.connection
+    "Quit a game in progress."
+
     if not self.game_in_progress:
-      c.notice(nick,
+      self.say_public(\
                "No game is in progress.  Use 'start game' to begin a game.")
     else:
-      c.notice(nick, "The game has ended.")
+      self.say_public("The game has ended.")
       self.game_in_progress = 0
 
+
   def do_command(self, e, cmd):
+    "Parse CMD and if recognized, execute it."
+
     nick = nm_to_n(e.source())
     c = self.connection
     
     if cmd == "die":
-      c.notice(nick, "Ciao!")
+      self.say_public("Ciao!")
       self.die()
 
     elif cmd == "start game":
@@ -155,12 +177,11 @@ class WolfBot(SingleServerIRCBot):
       chname, chobj = self.channels.items()[0]
       users = chobj.users()
       
-      c.notice(nick, "There are " + `len(users)` + " players in this channel.")
-      c.notice(nick, "Living players : " + string.join(self.live_players, ","))
-      c.notice(nick, "Dead players : " + string.join(self.dead_players, ","))
+      self.say_public("There are " + `len(users)` + \
+                      " players in this channel.")
 
     else:
-      c.notice(nick, "I don't understand.")
+      self.say_public("I don't understand.")
 
 
 
