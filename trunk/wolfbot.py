@@ -127,7 +127,8 @@ class WolfBot(SingleServerIRCBot):
 
     
   def on_nicknameinuse(self, c, e):
-    c.nick(c.get_nickname() + "_")
+    self.nickname = c.get_nickname() + "_"
+    c.nick(self.nickname)
 
   def _renameUser(self, old, new):
     for list in (self.live_players, self.wolves, self.villagers):

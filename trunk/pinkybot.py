@@ -141,7 +141,8 @@ class PinkyBot(SingleServerIRCBot):
     self.start()
 
   def on_nicknameinuse(self, c, e):
-    c.nick(c.get_nickname() + "_")
+    self.nickname = c.get_nickname() + "_"
+    c.nick(self.nickname)
 
   def on_welcome(self, c, e):
     c.join(self.channel)
