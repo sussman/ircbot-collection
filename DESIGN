@@ -24,9 +24,6 @@ command:  start
    -> bot sends /msg to each nick, stating each person's role, and
       reminding player to keep it a secret.
 
-   -> bot creates randomly-named "private" werewolf and seer channels,
-      invites the 3 people to join them, and waits until they do.
-
    -> bot reports that the game has been successfully initialized, and
       is ready to continue.  (game commands won't work until game has
       been correctly started.)
@@ -43,18 +40,18 @@ Night Cycle runs automatically:
 
    -> simultaneously:
 
-        * in private werewolf channel, bot tells wolves to discuss
-          whom to kill.  both wolves must type "kill <username>" to
-          signify agreement
+        * in private /msgs, bot tells wolves to privately discuss whom
+          to kill.  both wolves must send private message "kill
+          <username>" to signify agreement.
 
-        * in private seer channel, bot asks seer to ask about
-          someone.  seer types "ask <username>", and bot responds with
-          "<username> is/isn't a werewolf."
+        * in private /msg, bot asks seer to ask about someone.  seer
+          pm's "ask <username>", and bot pm's with "<username>
+          is/isn't a werewolf."
 
-   -> when both private channels are 'complete', then bot prints
-      speech into public channel:  "You awake to find the mutilated
-      body of <username>.  Upon examining the body, you discover that
-      this person was actually a {villager|werewolf|seer}."
+   -> when both private dialogue is 'complete', bot prints speech into
+      public channel: "You awake to find the mutilated body of
+      <username>.  Upon examining the body, you discover that this
+      person was actually a {villager|werewolf|seer}."
 
         -> bot 'devoices' the dead player!!
 
