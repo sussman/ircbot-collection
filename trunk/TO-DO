@@ -15,4 +15,6 @@ Things to improve:
 - need ability to create a 'list' of players before the game starts,
   some sort of registry that we can add/remove players from.  
 
+- need to handle user quit
+
 
