@@ -34,6 +34,7 @@ The main commands are:
 import sys, string, random, time
 from ircbot import SingleServerIRCBot
 from irclib import nm_to_n, nm_to_h, irc_lower
+from threading import Thread, Event
 
 #---------------------------------------------------------------------
 # General texts for narrating the game.  Change these global strings
@@ -120,6 +121,8 @@ class WolfBot(SingleServerIRCBot):
     self.nickname = nickname
     self.game_in_progress = 0
     self._reset_gamedata()
+    self.queue = OutputManager(self.connection)
+    self.queue.start()
     self.start()
 
     
@@ -188,7 +191,7 @@ class WolfBot(SingleServerIRCBot):
     from_nick = nm_to_n(e.source())
     a = string.split(e.arguments()[0], ":", 1)
     if len(a) > 1 \
-           and irc_lower(a[0]) == irc_lower(self.connection.get_nickname()):
+      and irc_lower(a[0]) == irc_lower(self.nickname):
       self.do_command(e, string.strip(a[1]), from_nick)
     return
 
@@ -213,12 +216,12 @@ class WolfBot(SingleServerIRCBot):
   def say_public(self, text):
     "Print TEXT into public channel, for all to see."
 
-    self.connection.privmsg(self.channel, text)
+    self.queue.send(text, self.channel)
 
 
   def say_private(self, nick, text):
     "Send private message of TEXT to NICK."
-    self.connection.privmsg(nick, text)
+    self.queue.send(nick, text)
 
 
   def reply(self, text, to_private=None):
@@ -269,19 +272,15 @@ class WolfBot(SingleServerIRCBot):
 
         # Private message each user, tell them their role.
         self.say_private(self.seer, seer_intro_text)
-        time.sleep(3)
         for wolf in self.wolves:
-          time.sleep(2)
           self.say_private(wolf, wolf_intro_text)
         for villager in self.villagers:
-          time.sleep(3)
           self.say_private(villager, villager_intro_text)
         
         for text in new_game_texts:
           self.say_public(text)
         self.game_in_progress = 1
 
-        time.sleep(10)
         # Start game by putting bot into "night" mode.
         self.night()
         
@@ -366,7 +365,6 @@ class WolfBot(SingleServerIRCBot):
     "Declare a NIGHT episode of gameplay."
 
     chname, chobj = self.channels.items()[0]
-#    self.connection.mode(chname, '+m')
 
     self.time = "night"
 
@@ -605,7 +603,6 @@ class WolfBot(SingleServerIRCBot):
         self.say_public(("The majority has voted to lynch %s!! Mob violence ensues.  This player is now DEAD." % victim))
         if not self.kill_player(victim):
           # Day is done;  flip bot back into night-mode.
-          time.sleep(5)
           self.night()
 
 
@@ -719,6 +716,29 @@ def main():
 
   bot = WolfBot(channel, nickname, server, port)
   bot.start()
+
+class OutputManager(Thread):
+
+  def __init__(self, connection):
+      Thread.__init__(self)
+      self.setDaemon(1)
+      self.connection = connection
+      self.event = Event()
+      self.queue = []
+  def run(self):
+      while 1:
+        self.event.wait()
+        print "queue woke up, queue size is %d"%len(self.queue)
+        while self.queue:
+          msg,target = self.queue.pop(0)
+          self.connection.privmsg(target, msg)
+          time.sleep(1)
+        self.event.clear()
+
+  def send(self, msg, target):
+    self.queue.append((msg.strip(),target))
+    self.event.set()
+
 
 if __name__ == "__main__":
   try:
