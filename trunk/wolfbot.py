@@ -633,7 +633,7 @@ class WolfBot(SingleServerIRCBot):
 
     if cmd == "help":
         self.reply(\
-        "Valid commands: 'help', 'stats', 'start game', 'end game', 'renick'", target)
+        "Valid commands: 'help', 'stats', 'start game', 'end game', 'renick', 'del'", target)
 
     elif cmd == "stats" or cmd == "status":
       if self.game_in_progress:
@@ -645,6 +645,9 @@ class WolfBot(SingleServerIRCBot):
         self.reply("No game is in progress.", target)
     elif cmd == "start game":      
       self.start_game(nm_to_n(e.source()))
+    elif len(cmds)>1 and cmds[0]=="del":
+        for nick in cmds[1:]:
+            self._removeUser(nicks)
 
     elif cmd == "end game":
       self.end_game(nm_to_n(e.source()))
