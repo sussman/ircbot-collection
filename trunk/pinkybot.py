@@ -195,18 +195,18 @@ class PinkyBot(SingleServerIRCBot):
       # assume that from_private comes from a 'privmsg' event.
       target = from_private.strip()
     
-    cmds = cmd.strip().split(" ")
-    numcmds = len(cmds)
+    expected1 = "are you thinking what I'm thinking?"
+    expected2 = "are you pondering what I'm pondering?"
 
-    if cmd == "are you thinking what I'm thinking?":
+    # Be forgiving about capitalization and whitespace.
+    cmd = cmd.replace(" ", "").lower()
+    expected1 = expected1.replace(" ", "").lower()
+    expected2 = expected2.replace(" ", "").lower()
+
+    if cmd == expected1 or cmd == expected2:
       self.reply(self.ponder_something(), target)
-
-    if cmd == "are you pondering what I'm pondering?":
-      self.reply(self.ponder_something(), target)
-
     else:
       self.reply(self.exclaim_something(), target)
-
 
 
 def main():
