@@ -242,9 +242,18 @@ class WolfBot(SingleServerIRCBot):
   def check_game_over(self):
     "End the game if either villagers or werewolves have won."
 
-    # TODO:  if both wolves are dead,
-    #        or if len(self.wolves) == len(self.villagers)
-    self.end_game()
+    if len(self.wolves) == 0:
+      self.say_public("The wolves are dead!  The VILLAGERS have WON.")
+      self.end_game()      
+
+    if len(self.wolves) == len(self.villagers):
+      self.say_public(\
+        "There are now an equal number of villagers and werewolves.")
+      self.say_public("The werewolves have no need to hide anymore.")
+      self.say_public(\
+        "They attack the remaining villagers.  The WEREWOLVES have WON.")
+      self.end_game()
+
 
 
   def check_night_done(self):
@@ -268,6 +277,7 @@ class WolfBot(SingleServerIRCBot):
   def night(self):
     "Declare a NIGHT episode of gameplay."
 
+    self.check_game_over()
     self.time = "night"
 
     # Declare nighttime.
@@ -298,10 +308,11 @@ class WolfBot(SingleServerIRCBot):
   def day(self):
     "Declare a DAY episode of gameplay."
 
+    self.check_game_over()
     self.time = "day"
     
-    self.say_pubilc("DAY Breaks!  Sunlight pierces the sky.")
-    self.say_public(("You awake to find the multilated body of %s!!"\
+    self.say_public("DAY Breaks!  Sunlight pierces the sky.")
+    self.say_public(("The village awakes to find the mutilated body of %s!!"\
                      % self.wolf_target))
     self.say_public("This player is now DEAD.")
     self.kill_player(wolf_target)
@@ -391,7 +402,18 @@ class WolfBot(SingleServerIRCBot):
 
     self.live_players.remove(player)
     self.dead_players.append(player)
-    self.say_public(("(%s is now dead, and should stay quiet.") % player)
+
+    if player in self.wolves:
+      self.say_public(\
+        "Examining the body, you notice that this player was a WEREWOLF!")
+      self.wolves.remove(player)
+
+    if player == self.seer:
+      self.say_public(\
+        "Examining the body, you notice that this player was the SEER.")
+    
+    self.say_public(("(%s is now dead, and should stay quiet.)") % player)
+
     self.say_private(player, "You are now DEAD.  You may observe the game,")
     self.say_private(player, "but please stay quiet until the game is over.")
 
@@ -424,7 +446,7 @@ class WolfBot(SingleServerIRCBot):
     "Publically display the vote tally."
 
     majority_needed = (len(self.live_players)/2) + 1 
-    msg = "%d votes needed for a majority.  Current vote talli: "
+    msg = "%d votes needed for a majority.  Current vote tally: "
     for lynchee in self.tally.keys():
       msg = msg + ("(%s : %d) " % lynchee, self.tally[lynchee])
     self.say_public(msg)
