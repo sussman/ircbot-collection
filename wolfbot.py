@@ -40,6 +40,7 @@ from irclib import nm_to_n, nm_to_h, irc_lower
 # however you wish, without having to muck with the core logic!
 
 minUsers=7
+defaultPort=6667
 
 # Printed when a game first starts:
 
@@ -114,7 +115,7 @@ day_game_texts = \
 
 
 class WolfBot(SingleServerIRCBot):
-  def __init__(self, channel, nickname, server, port=6667):
+  def __init__(self, channel, nickname, server, port=defaultPort):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
     self.nickname = nickname
@@ -129,9 +130,11 @@ class WolfBot(SingleServerIRCBot):
   def _renameUser(self, old, new):
     for list in (self.live_players, self.wolves, self.villagers):
       if(old in list):
-        print "removing %s from %s"%(old,list)
         list.append(new)
         list.remove(old)
+    for map in (self.wolf_votes, self.villager_votes, self.tally):
+      map[new]=map[old]
+      del map[old]
     if new == self.seer:
       self.seer=new
 
@@ -640,9 +643,9 @@ class WolfBot(SingleServerIRCBot):
           self.print_tally()
       else:
         self.reply("No game is in progress.", target)
-
     elif cmd == "start game":      
       self.start_game(nm_to_n(e.source()))
+
     elif cmd == "end game":
       self.end_game(nm_to_n(e.source()))
     elif len(cmds)==2 and cmds[0] == "renick":
@@ -705,7 +708,7 @@ def main():
       print "Error: Erroneous port."
       sys.exit(1)
   else:
-    port = 6667
+    port = defaultPort
   channel = sys.argv[2]
   nickname = sys.argv[3]
 
