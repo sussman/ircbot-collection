@@ -263,7 +263,7 @@ class WolfBot(SingleServerIRCBot):
 
     self.say_public(("*** The two wolves were %s and %s." % \
                      (self.originalwolf1, self.originalwolf2)))
-    self.say_public(("*** The 'seer' was %s." % self.seer))
+    self.say_public(("*** The seer was %s." % self.seer))
     self.say_public("*** Everyone else was a normal villager.")
 
 
@@ -274,7 +274,7 @@ class WolfBot(SingleServerIRCBot):
     # If all wolves are dead, the villagers win.
     if len(self.wolves) == 0:
       self.say_public("The wolves are dead!  The VILLAGERS have WON.")
-      self.end_game()
+      self.end_game(self.game_starter)
       return 1
 
     # If the number of non-wolves is the same as the number of wolves,
@@ -286,7 +286,7 @@ class WolfBot(SingleServerIRCBot):
       msg = msg + "They attack the remaining villagers. "
       msg = msg + "The WEREWOLVES have WON."
       self.say_public(msg)    
-      self.end_game()
+      self.end_game(self.game_starter)
       return 1
 
     return 0
@@ -548,7 +548,7 @@ class WolfBot(SingleServerIRCBot):
     the CMD, execute it, then reply either to public channel or via
     /msg, based on how the command was received.  E is the original
     event, and FROM_PRIVATE is the nick that sent the message."""
-    
+
     if e.eventtype() == "pubmsg":
       # self.reply() sees 'from_private = None' and sends to public channel.
       target = None
@@ -563,17 +563,12 @@ class WolfBot(SingleServerIRCBot):
     if from_private in self.dead_players:
       if (cmd != "stats") and (cmd != "status") and (cmd != "help"):
         self.reply("Please -- dead players should keep quiet.", target)
+        return 0
 
-    elif cmd == "help":
-      self.reply(\
+    if cmd == "help":
+        self.reply(\
         "Valid commands: 'help', 'stats', 'start game', 'end game'", target)
 
-    elif cmd == "start game":      
-      self.start_game(nm_to_n(e.source()))
-          
-    elif cmd == "end game":
-      self.end_game(nm_to_n(e.source()))
-                
     elif cmd == "stats" or cmd == "status":
       if self.game_in_progress:
         self.print_alive()
@@ -582,6 +577,13 @@ class WolfBot(SingleServerIRCBot):
           self.print_tally()
       else:
         self.reply("No game is in progress.", target)
+
+    elif cmd == "start game":      
+      self.start_game(nm_to_n(e.source()))
+          
+    elif cmd == "end game":
+      self.end_game(nm_to_n(e.source()))
+                
 
     elif cmds[0] == "see":
       if numcmds == 2:
