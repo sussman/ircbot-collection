@@ -126,20 +126,7 @@ class WolfBot(SingleServerIRCBot):
   def on_nicknameinuse(self, c, e):
     c.nick(c.get_nickname() + "_")
 
-
-      
-  def on_welcome(self, c, e):
-    c.join(self.channel)
-
-
-  def on_privmsg(self, c, e):
-    from_nick = nm_to_n(e.source())
-    self.do_command(e, e.arguments()[0], from_nick)
-
-  
-  def on_part(self, c, e):
-    nick = nm_to_n(e.source())
-    chan = e.target()
+  def _removeUser(self, nick):
     if(self.live_players): 
       if nick in self.live_players:
         self.say_public("%s left while nobody was looking! I've removed this person from the game.."
@@ -156,6 +143,23 @@ class WolfBot(SingleServerIRCBot):
             self.say_public("%s was blessed with unusual insight into lycanthropism."%(nick))
 
         self.check_game_over()
+
+
+  def on_quit(self, c, e):
+    self._removeUser(nm_to_n(e.source()))
+
+      
+  def on_welcome(self, c, e):
+    c.join(self.channel)
+
+
+  def on_privmsg(self, c, e):
+    from_nick = nm_to_n(e.source())
+    self.do_command(e, e.arguments()[0], from_nick)
+
+  
+  def on_part(self, c, e):
+    self._removeUser(nm_to_n(e.source()))
 
 
   def on_pubmsg(self, c, e):
