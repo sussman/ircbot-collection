@@ -147,12 +147,14 @@ class WolfBot(SingleServerIRCBot):
 
   def _reset_gamedata(self):
     self.time = None
-    self.round = 1
+    self.game_starter = None
     self.live_players = []
     self.dead_players = []
     self.wolves = []
     self.villagers = []
     self.seer = None
+    self.originalwolf1 = None
+    self.originalwolf2 = None
     self.seer_target = None
     self.wolf_target = None
     self.wolf_votes = {}
@@ -181,12 +183,13 @@ class WolfBot(SingleServerIRCBot):
       self.say_public(text)
     
 
-  def start_game(self):
+  def start_game(self, game_starter):
     "Initialize a werewolf game -- assign roles and notify all players."
 
     if self.game_in_progress:
       self.say_public(\
-        "A game is already in progress.  Use 'end game' to end it.")
+        ("A game has already been started by %s;  that person must end it." %\
+         self.game_starter))
 
     else:
       chname, chobj = self.channels.items()[0]
@@ -201,6 +204,9 @@ class WolfBot(SingleServerIRCBot):
       else:
 
         self._reset_gamedata()
+
+        # Remember who started the game.
+        self.game_starter = game_starter
         
         # Everyone starts out alive.
         self.live_players = users[:]
@@ -209,6 +215,8 @@ class WolfBot(SingleServerIRCBot):
         self.say_public("Please wait, assigning roles...")
         self.wolves.append(users.pop(random.randrange(len(users))))
         self.wolves.append(users.pop(random.randrange(len(users))))
+        self.originalwolf1 = self.wolves[0]
+        self.originalwolf2 = self.wolves[1]
         self.seer = users.pop(random.randrange(len(users)))
         for user in users:
           self.villagers.append(user)
@@ -233,16 +241,30 @@ class WolfBot(SingleServerIRCBot):
         self.night()
         
 
-  def end_game(self):
+  def end_game(self, game_ender):
     "Quit a game in progress."
 
     if not self.game_in_progress:
       self.say_public(\
                "No game is in progress.  Use 'start game' to begin a game.")
+    elif game_ender != self.game_starter:
+      self.say_public(\
+        ("Sorry, only the starter of the game (%s) may end it." %\
+         self.game_starter))
     else:
       self.say_public("The game has ended.")
+      self.reveal_all_identities()
       self._reset_gamedata()
       self.game_in_progress = 0
+
+
+  def reveal_all_identities(self):
+    "Print everyone's identities."
+
+    self.say_public(("*** The two wolves were %s and %s." % \
+                     (self.originalwolf1, self.originalwolf2)))
+    self.say_public(("*** The 'seer' was %s." % self.seer))
+    self.say_public("*** Everyone else was a normal villager.")
 
 
   def check_game_over(self):
@@ -425,13 +447,15 @@ class WolfBot(SingleServerIRCBot):
     self.dead_players.append(player)
 
     if player in self.wolves:
-      self.say_public(\
-        "Examining the body, you notice that this player was a WEREWOLF!")
+      id = "a WEREWOLF!"
       self.wolves.remove(player)
+    elif player == self.seer:
+      id = "the SEER!"
+    else:
+      id = "a normal villager."
 
-    if player == self.seer:
-      self.say_public(\
-        "Examining the body, you notice that this player was the SEER.")
+    self.say_public(\
+        ("*** Examining the body, you notice that this player was %s" % id))
 
     if self.check_game_over():
       return 1
@@ -473,8 +497,12 @@ class WolfBot(SingleServerIRCBot):
     msg = ("%d votes needed for a majority.  Current vote tally: " \
            % majority_needed)
     for lynchee in self.tally.keys():
-      msg = msg + ("(%s : %d vote(s)) " % (lynchee, self.tally[lynchee]))
+      if self.tally[lynchee] > 1:
+        msg = msg + ("(%s : %d votes) " % (lynchee, self.tally[lynchee]))
+      else:
+        msg = msg + ("(%s : 1 vote) " % lynchee)
     self.say_public(msg)
+    self.say_public("Remember:  votes can be changed at any time.")
 
       
   def print_alive(self):
@@ -533,20 +561,20 @@ class WolfBot(SingleServerIRCBot):
 
     # Dead players should not speak.
     if from_private in self.dead_players:
-      self.reply("Please -- dead players should keep quiet.", target)
+      if (cmd != "stats") and (cmd != "status") and (cmd != "help"):
+        self.reply("Please -- dead players should keep quiet.", target)
 
-    # This is our main parser of incoming commands.
-    elif cmd == "die":
-      self.say_public("Ciao!")
-      self.die()
+    elif cmd == "help":
+      self.reply(\
+        "Valid commands: 'help', 'stats', 'start game', 'end game'", target)
 
-    elif cmd == "start game":
-      self.start_game()
+    elif cmd == "start game":      
+      self.start_game(nm_to_n(e.source()))
           
     elif cmd == "end game":
-      self.end_game()
+      self.end_game(nm_to_n(e.source()))
                 
-    elif cmd == "stats":
+    elif cmd == "stats" or cmd == "status":
       if self.game_in_progress:
         self.print_alive()
         if self.time == "day":
