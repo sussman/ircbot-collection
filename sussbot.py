@@ -149,7 +149,10 @@ class SussBot(SingleServerIRCBot):
       # assume that from_private comes from a 'privmsg' event.
       target = from_private.strip()
 
-    if cmd[-1] == '?':
+    # pause before replying, for believable effect:
+    time.sleep(random.randrange(4, 12))
+
+    if cmd[-1] == '?':      
       self.reply(self.ponder_something(), target)
     else:
       self.reply(self.exclaim_something(), target)
