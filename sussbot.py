@@ -71,6 +71,14 @@ ponderings = \
  "I seem to recall a discussion about this, way back when",
  "what have others said?",
  "hm, tricky.",
+ "your call.",
+ "can you rephrase?",
+ "I don't think this is my area.",
+ "have you asked darix?",
+ "did you look at the book?",
+ "hm, would you mind posting the question to the list?",
+ "sounds familiar somehow",
+ "others may know better than me",
 ]
 
 
