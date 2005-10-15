@@ -329,6 +329,9 @@ class WolfBot(SingleServerIRCBot):
           self.say_private(wolf, wolf_intro_text)
         for villager in self.villagers:
           self.say_private(villager, villager_intro_text)
+
+        if self.debug:
+          print "SEER: %s, WOLVES: %s" % (self.seer, self.wolves)
         
         for text in new_game_texts:
           self.say_public(text)
@@ -514,7 +517,7 @@ class WolfBot(SingleServerIRCBot):
         else:
           if len(self.wolves) == 2:
             # two wolves are alive:
-            self.wolf_votes[from_private] = who
+            self.wolf_votes[nm_to_n(e.source())] = who
             self.reply(e, "Your vote is acknowledged.")
 
             # if both wolves have voted, look for agreement:
@@ -626,6 +629,7 @@ class WolfBot(SingleServerIRCBot):
   def lynch_vote(self, e, lynchee):
     "Register a vote to lynch LYNCHEE."
 
+    lyncher = nm_to_n(e.source())
     # sanity checks
     if self.time != "day":
       self.reply(e, "Sorry, lynching only happens during the day.")
@@ -637,7 +641,6 @@ class WolfBot(SingleServerIRCBot):
       self.reply(e, "Um, you can't lynch yourself.")
 
     else:
-      lyncher = nm_to_n(e.source())
       self.villager_votes[lyncher] = lynchee
       self.say_public(("%s has voted to lynch %s!" % (lyncher, lynchee)))
       self.tally_votes()
@@ -645,7 +648,8 @@ class WolfBot(SingleServerIRCBot):
       if victim is None:
         self.print_tally()
       else:
-        self.say_public(("The majority has voted to lynch %s!! Mob violence ensues.  This player is now DEAD." % victim))
+        self.say_public(("The majority has voted to lynch %s!! "
+          "Mob violence ensues.  This player is now DEAD." % victim))
         if not self.kill_player(victim):
           # Day is done;  flip bot back into night-mode.
           self.night()
