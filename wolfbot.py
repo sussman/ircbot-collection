@@ -115,10 +115,11 @@ day_game_texts = \
 
 
 class WolfBot(SingleServerIRCBot):
-  def __init__(self, channel, nickname, server, port=defaultPort):
+  def __init__(self, channel, nickname, nickpass, server, port=defaultPort):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
-    self.nickname = nickname
+    self.desired_nickname = self.nickname = nickname
+    self.nickpass = nickpass
     self.game_in_progress = 0
     self._reset_gamedata()
     self.queue = OutputManager(self.connection)
@@ -129,6 +130,9 @@ class WolfBot(SingleServerIRCBot):
   def on_nicknameinuse(self, c, e):
     self.nickname = c.get_nickname() + "_"
     c.nick(self.nickname)
+    self.queue.cmd(c.privmsg,
+        ('nickserv', 'ghost %s %s' % (self.desired_nickname, self.nickpass)))
+    self.queue.cmd(c.nick, (self.desired_nickname))
 
   def _renameUser(self, old, new):
     for list in (self.live_players, self.wolves, self.villagers):
@@ -179,6 +183,12 @@ class WolfBot(SingleServerIRCBot):
   def on_welcome(self, c, e):
     c.join(self.channel)
 
+
+  def on_privnotice(self, c, e):
+    source = e.source()
+    if source and irc_lower(nm_to_n(source)) == 'nickserv':
+      if e.arguments()[0].find('IDENTIFY') >= 0:
+        self.queue.send('identify %s' % self.nickpass, 'nickserv')
 
   def on_privmsg(self, c, e):
     from_nick = nm_to_n(e.source())
@@ -717,8 +727,8 @@ class WolfBot(SingleServerIRCBot):
 
 def main():
   
-  if len(sys.argv) != 4:
-    print "Usage: wolfbot.py <server[:port]> <channel> <nickname>"
+  if len(sys.argv) != 5:
+    print "Usage: wolfbot.py <server[:port]> <channel> <nickname> <nickpass>"
     sys.exit(1)
 
   s = string.split(sys.argv[1], ":", 1)
@@ -731,10 +741,9 @@ def main():
       sys.exit(1)
   else:
     port = defaultPort
-  channel = sys.argv[2]
-  nickname = sys.argv[3]
+  channel, nickname, nickpass = sys.argv[2:5]
 
-  bot = WolfBot(channel, nickname, server, port)
+  bot = WolfBot(channel, nickname, nickpass, server, port)
   bot.start()
 
 class OutputManager(Thread):
@@ -749,13 +758,13 @@ class OutputManager(Thread):
       while 1:
         self.event.wait()
         while self.queue:
-          msg,target = self.queue.pop(0)
-          self.connection.privmsg(target, msg)
+          method, args = self.queue.pop(0)
+          method(*args)
           time.sleep(.5)
         self.event.clear()
 
   def send(self, msg, target):
-    self.queue.append((msg.strip(),target))
+    self.queue.append((self.connection.privmsg, (msg.strip(),target)))
     self.event.set()
 
 
