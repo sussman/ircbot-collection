@@ -118,6 +118,8 @@ class WolfBot(SingleServerIRCBot):
   def __init__(self, channel, nickname, nickpass, server, port=defaultPort):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
+    # self.nickname is the nickname we _want_. The nickname we actually
+    # have at any particular time is c.get_nickname().
     self.nickname = nickname
     self.nickpass = nickpass
     self.game_in_progress = 0
@@ -128,8 +130,7 @@ class WolfBot(SingleServerIRCBot):
 
     
   def on_nicknameinuse(self, c, e):
-    self.nickname = c.get_nickname() + "_"
-    c.nick(self.nickname)
+    c.nick(c.get_nickname() + "_")
 
   def _renameUser(self, old, new):
     for list in (self.live_players, self.wolves, self.villagers):
@@ -171,7 +172,11 @@ class WolfBot(SingleServerIRCBot):
 
 
   def on_quit(self, c, e):
-    self._removeUser(nm_to_n(e.source()))
+    source = nm_to_n(e.source())
+    self._removeUser(source)
+    if source == self.nickname:
+      # Our desired nick just quit - take the nick back
+      c.nick(self.nickname)
 
   def on_nick(self, c, e):
     self._renameUser(nm_to_n(e.source()), e.target())
@@ -179,13 +184,17 @@ class WolfBot(SingleServerIRCBot):
       
   def on_welcome(self, c, e):
     c.join(self.channel)
+    if c.get_nickname() != self.nickname:
+      # Reclaim our desired nickname
+      c.privmsg('nickserv', 'ghost %s %s' % (self.nickname, self.nickpass))
 
 
   def on_privnotice(self, c, e):
     source = e.source()
     if source and irc_lower(nm_to_n(source)) == 'nickserv':
       if e.arguments()[0].find('IDENTIFY') >= 0:
-        if self.nickpass:
+        # Received request to identify
+        if self.nickpass and self.nickname == c.get_nickname():
           self.queue.send('identify %s' % self.nickpass, 'nickserv')
 
   def on_privmsg(self, c, e):
@@ -201,7 +210,7 @@ class WolfBot(SingleServerIRCBot):
     from_nick = nm_to_n(e.source())
     a = string.split(e.arguments()[0], ":", 1)
     if len(a) > 1 \
-      and irc_lower(a[0]) == irc_lower(self.nickname):
+      and irc_lower(a[0]) == irc_lower(c.get_nickname()):
       self.do_command(e, string.strip(a[1]), from_nick)
     return
 
