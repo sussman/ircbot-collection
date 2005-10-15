@@ -46,7 +46,7 @@ defaultPort=6667
 # Printed when a game first starts:
 
 new_game_texts = \
-["This is a game of paranoia and psychological intrigue.  Everyone \
+["This is a game of paranoia and psychological intrigue.  Everyone\
  in this group appears to be a common villager, but three of\
  you are 'special'.  Two people are actually evil werewolves, seeking\
  to kill everyone while concealing their identity.",
@@ -115,7 +115,8 @@ day_game_texts = \
 
 
 class WolfBot(SingleServerIRCBot):
-  def __init__(self, channel, nickname, nickpass, server, port=defaultPort):
+  def __init__(self, channel, nickname, nickpass, server, port=defaultPort,
+      debug=False):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
     # self.nickname is the nickname we _want_. The nickname we actually
@@ -123,12 +124,47 @@ class WolfBot(SingleServerIRCBot):
     self.nickname = nickname
     self.nickpass = nickpass
     self.game_in_progress = 0
+    self.debug = debug
+    self.spectators = {}
     self._reset_gamedata()
     self.queue = OutputManager(self.connection)
     self.queue.start()
     self.start()
 
     
+  _uninteresting_events = {
+    'all_raw_messages': None,
+    'yourhost': None,
+    'created': None,
+    'myinfo': None,
+    'featurelist': None,
+    'luserclient': None,
+    'luserop': None,
+    'luserchannels': None,
+    'luserme': None,
+    'n_local': None,
+    'n_global': None,
+    'luserconns': None,
+    'motdstart': None,
+    'motd': None,
+    'endofmotd': None,
+    'topic': None,
+    'topicinfo': None,
+    'ping': None,
+    }
+  def _dispatcher(self, c, e):
+    if self.debug:
+      eventtype = e.eventtype()
+      if eventtype not in self._uninteresting_events:
+        source = e.source()
+        if source is not None:
+          source = nm_to_n(source)
+        else:
+          source = ''
+        print "E: %s (%s->%s) %s" % (eventtype, source, e.target(),
+            e.arguments())
+    SingleServerIRCBot._dispatcher(self, c, e)
+
   def on_nicknameinuse(self, c, e):
     c.nick(c.get_nickname() + "_")
 
@@ -263,6 +299,9 @@ class WolfBot(SingleServerIRCBot):
     else: 
       users = chobj.users()
       users.remove(self._nickname)
+
+      for nick in self.spectators.keys():
+        users.remove(nick)
 
       if len(users) < minUsers:
         self.say_public("Sorry, to start a game, there must be " + \
@@ -720,6 +759,22 @@ class WolfBot(SingleServerIRCBot):
         self.reply("Lynch who?", target)
 
 
+    elif cmds[0] == "spectate":
+      for nick in cmds[1:]:
+        if nick in self.channels.values()[0].users():
+          self.spectators[nick] = None
+          self.reply('%s is now a spectator' % nick, target)
+        else:
+          self.reply('No such nick: %s' % nick, target)
+
+    elif cmds[0] == "unspectate":
+      for nick in cmds[1:]:
+        if nick in self.spectators:
+          del self.spectators[nick]
+          self.reply('%s is no longer a spectator' % nick, target)
+        else:
+          self.reply('%s was not a spectator anyway!' % nick, target)
+
     else:
       # unknown command:  respond appropriately.
       
@@ -732,15 +787,32 @@ class WolfBot(SingleServerIRCBot):
         self.reply("Hm?  Get back to lynching.", target)
 
 
-def main():
-  if len(sys.argv) not in (1, 2):
-    print "Usage: wolfbot.py [<config-file>]"
-    sys.exit(1)
+def usage(exitcode=1):
+  print "Usage: wolfbot.py [-d] [<config-file>]"
+  sys.exit(exitcode)
 
-  if len(sys.argv) > 1:
-    configfile = sys.argv[1]
+
+def main():
+  import getopt
+
+  try:
+    opts, args = getopt.gnu_getopt(sys.argv, 'd', ('debug',))
+  except getopt.GetoptError:
+    usage()
+
+  debug = False
+  for opt, val in opts:
+    if opt in ('-d', '--debug'):
+      debug = True
+
+  if len(args) not in (0, 1):
+    usage()
+
+  if len(args) > 0:
+    configfile = args[0]
   else:
     configfile = 'wolfbot.conf'
+
   import ConfigParser
   c = ConfigParser.ConfigParser()
   c.read('wolfbot.conf')
@@ -761,17 +833,18 @@ def main():
   else:
     port = defaultPort
 
-  bot = WolfBot(channel, nickname, nickpass, server, port)
+  bot = WolfBot(channel, nickname, nickpass, server, port, debug)
   bot.start()
 
-class OutputManager(Thread):
 
+class OutputManager(Thread):
   def __init__(self, connection):
       Thread.__init__(self)
       self.setDaemon(1)
       self.connection = connection
       self.event = Event()
       self.queue = []
+
   def run(self):
       while 1:
         self.event.wait()
