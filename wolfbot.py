@@ -234,8 +234,7 @@ class WolfBot(SingleServerIRCBot):
           self.queue.send('identify %s' % self.nickpass, 'nickserv')
 
   def on_privmsg(self, c, e):
-    from_nick = nm_to_n(e.source())
-    self.do_command(e, e.arguments()[0], from_nick)
+    self.do_command(e, e.arguments()[0])
 
   
   def on_part(self, c, e):
@@ -243,12 +242,9 @@ class WolfBot(SingleServerIRCBot):
 
 
   def on_pubmsg(self, c, e):
-    from_nick = nm_to_n(e.source())
     a = string.split(e.arguments()[0], ":", 1)
-    if len(a) > 1 \
-      and irc_lower(a[0]) == irc_lower(c.get_nickname()):
-      self.do_command(e, string.strip(a[1]), from_nick)
-    return
+    if len(a) > 1 and irc_lower(a[0]) == irc_lower(c.get_nickname()):
+      self.do_command(e, string.strip(a[1]))
 
 
   def _reset_gamedata(self):
@@ -279,13 +275,12 @@ class WolfBot(SingleServerIRCBot):
     self.queue.send(text,nick)
 
 
-  def reply(self, text, to_private=None):
-    "Send TEXT to either public channel or TO_PRIVATE nick (if defined)."
-
-    if to_private is not None:
-      self.say_private(to_private, text)
+  def reply(self, e, text):
+    "Send TEXT to public channel or as private msg, in reply to event E."
+    if e.eventtype() == "pubmsg":
+      self.say_public("%s: %s" % (nm_to_n(e.source()), text))
     else:
-      self.say_public(text)
+      self.say_private(nm_to_n(e.source()), text)
     
 
   def start_game(self, game_starter):
@@ -482,71 +477,61 @@ class WolfBot(SingleServerIRCBot):
 
 
 
-  def see(self, from_private, who):
+  def see(self, e, who):
     "Allow a seer to 'see' somebody."
 
     if self.time != "night":
-      self.reply("Are you a seer?  In any case, it's not nighttime.",\
-                 from_private)
+      self.reply(e, "Are you a seer?  In any case, it's not nighttime.")
     else:
-      if from_private != self.seer:
-        self.reply("Huh?", from_private)
+      if nm_to_n(e.source()) != self.seer:
+        self.reply(e, "Huh?")
       else:
         if who not in self.live_players:          
-          self.reply("That player either doesn't exist, or is dead.",\
-                     from_private)
+          self.reply(e, "That player either doesn't exist, or is dead.")
         else:
           if self.seer_target is not None:
-            self.reply("You've already had your vision for tonight.",\
-                       from_private)
+            self.reply(e, "You've already had your vision for tonight.")
           else:
             self.seer_target = who
             if who in self.wolves:
-              self.reply("You're sure that player is a werewolf!",\
-                         from_private)
+              self.reply(e, "You're sure that player is a werewolf!")
             else:
-              self.reply("You're sure that player is a normal villager.",\
-                         from_private)
+              self.reply(e, "You're sure that player is a normal villager.")
             if self.check_night_done():
               self.day()
 
 
-  def kill(self, from_private, who):
+  def kill(self, e, who):
     "Allow a werewolf to express intent to 'kill' somebody."
     if self.time != "night":
-      self.reply("Are you a werewolf?  In any case, it's not nighttime.",\
-                 from_private)
+      self.reply(e, "Are you a werewolf?  In any case, it's not nighttime.")
     else:
-      if from_private not in self.wolves:
-        self.reply("Huh?", from_private)
+      if nm_to_n(e.source()) not in self.wolves:
+        self.reply(e, "Huh?")
       else:
         if who not in self.live_players:          
-          self.reply("That player either doesn't exist, or is dead.",\
-                     from_private)
+          self.reply(e, "That player either doesn't exist, or is dead.")
         else:
           if len(self.wolves) == 2:
             # two wolves are alive:
             self.wolf_votes[from_private] = who
-            self.reply("Your vote is acknowledged.", from_private)
+            self.reply(e, "Your vote is acknowledged.")
 
             # if both wolves have voted, look for agreement:
             voters = self.wolf_votes.keys()
             if len(voters) == 2:
               if self.wolf_votes[voters[0]] == self.wolf_votes[voters[1]]:
                 self.wolf_target = self.wolf_votes[voters[0]]
-                self.reply("It is done.  You and the other werewolf agree.",\
-                           from_private)
+                self.reply(e, "It is done.  You and the other werewolf agree.")
                 if self.check_night_done():
                   self.day()
               else:
-                self.reply("Hm, I sense disagreement or ambivalence.",\
-                           from_private)
-                self.reply("You two wolves should decide on one target.",\
-                           from_private)            
+                self.reply(e, "Hm, I sense disagreement or ambivalence.")
+                self.reply(e, "You two wolves should decide on one target.")
           else:
             # only one wolf alive, no need to agree with anyone.
             self.wolf_target = who
-            self.reply("Your decision is acknowledged.", from_private)
+            self.reply(e, "Your decision is acknowledged.")
             if self.check_night_done():
               self.day()
 
@@ -638,20 +623,21 @@ class WolfBot(SingleServerIRCBot):
 
 
 
-  def lynch_vote(self, lyncher, lynchee):
-    "Register a vote from LYNCHER to lynch LYNCHEE."
+  def lynch_vote(self, e, lynchee):
+    "Register a vote to lynch LYNCHEE."
 
     # sanity checks
     if self.time != "day":
-      self.reply("Sorry, lynching only happens during the day.")
+      self.reply(e, "Sorry, lynching only happens during the day.")
     elif lyncher not in self.live_players:
-      self.reply("Um, only living players can vote to lynch someone.")
+      self.reply(e, "Um, only living players can vote to lynch someone.")
     elif lynchee not in self.live_players:
-      self.reply("Um, only living players can be lynched.")
+      self.reply(e, "Um, only living players can be lynched.")
     elif lynchee == lyncher:
-      self.reply("Um, you can't lynch yourself.")
+      self.reply(e, "Um, you can't lynch yourself.")
 
     else:
+      lyncher = nm_to_n(e.source())
       self.villager_votes[lyncher] = lynchee
       self.say_public(("%s has voted to lynch %s!" % (lyncher, lynchee)))
       self.tally_votes()
@@ -665,126 +651,131 @@ class WolfBot(SingleServerIRCBot):
           self.night()
 
 
-  def do_command(self, e, cmd, from_private):
+  def cmd_help(self, args, e):
+    self.reply(e, "Valid commands: 'help', 'stats', 'start game', 'end game', "
+        "'renick', 'del', 'votes'")
+
+  def cmd_stats(self, args, e):
+    if self.game_in_progress:
+      self.print_alive()
+      if self.time == "day":
+        self.tally_votes()
+        self.print_tally()
+    else:
+      self.reply(e, "No game is in progress.")
+
+  def cmd_status(self, args, e):
+    self.cmd_stats(args, e)
+
+  def cmd_start(self, args, e):
+    target = nm_to_n(e.source())
+    self.start_game(target)
+
+  def cmd_end(self, args, e):
+    target = nm_to_n(e.source())
+    self.end_game(target)
+
+  def cmd_votes(self, args, e):
+    non_voters = []
+    voters = []
+    if self.villager_votes.keys():
+      for n in self.live_players:
+        if not self.villager_votes.has_key(n):
+          non_voters.append(n)
+        else:
+          voters.append(n)
+      if non_voters:
+        self.say_public("The following have no votes registered: %s" 
+            % (non_voters))
+      else:
+        self.say_public("Everyone has voted.")
+    else:
+      self.say_public("Nobody has voted yet.")
+
+  def cmd_del(self, args, e):
+    for nick in args:
+      self._removeUser(nick)
+
+  def cmd_renick(self, args, e):
+    if len(args) != 1:
+      self.reply(e, "Usage: renick <nick>")
+    self.connection.nick(args[0])
+
+  def cmd_see(self, args, e):
+    target = nm_to_n(e.source())
+    if len(args) == 1:
+      viewee = self.match_name(args[0].strip())
+      if viewee is not None:        
+        self.see(e, viewee.strip())
+        return
+    self.reply(e, "See who?")
+
+  def cmd_kill(self, args, e):
+    target = nm_to_n(e.source())
+    if len(args) == 1:
+      killee = self.match_name(args[0].strip())
+      if killee is not None:
+        self.kill(e, killee)
+        return
+    self.reply(e, "Kill who?")
+
+  def cmd_lynch(self, args, e):
+    target = nm_to_n(e.source())
+    if len(args) == 1:
+      lynchee = self.match_name(args[0])
+      if lynchee is not None:
+        self.lynch_vote(e, lynchee.strip())
+        return
+    self.reply(e, "Lynch who?")
+
+  def cmd_spectate(self, args, e):
+    target = nm_to_n(e.source())
+    for nick in args:
+      if nick in self.channels.values()[0].users():
+        self.spectators[nick] = None
+        self.reply(e, '%s is now a spectator' % nick)
+      else:
+        self.reply(e, 'No such nick: %s' % nick)
+
+  def cmd_unspectate(self, args, e):
+    target = nm_to_n(e.source())
+    for nick in args:
+      if nick in self.spectators:
+        del self.spectators[nick]
+        self.reply(e, '%s is no longer a spectator' % nick)
+      else:
+        self.reply(e, '%s was not a spectator anyway!' % nick)
+
+  def do_command(self, e, cmd):
     """This is the function called whenever someone sends a public or
     private message addressed to the bot. (e.g. "bot: blah").  Parse
     the CMD, execute it, then reply either to public channel or via
     /msg, based on how the command was received.  E is the original
     event, and FROM_PRIVATE is the nick that sent the message."""
 
-    if e.eventtype() == "pubmsg":
-      # self.reply() sees 'from_private = None' and sends to public channel.
-      target = None
-    else:
-      # assume that from_private comes from a 'privmsg' event.
-      target = from_private.strip()
-    
     cmds = cmd.strip().split(" ")
-    numcmds = len(cmds)
-
 
     # Dead players should not speak.
-    if from_private in self.dead_players:
+    if nm_to_n(e.source()) in self.dead_players:
       if (cmd != "stats") and (cmd != "status") and (cmd != "help"):
-        self.reply("Please -- dead players should keep quiet.", target)
+        self.reply(e, "Please -- dead players should keep quiet.")
         return 0
 
-    if cmd == "help":
-        self.reply(\
-        "Valid commands: 'help', 'stats', 'start game', 'end game', 'renick', 'del', votes", target)
+    try:
+      getattr(self, "cmd_" + cmds[0])(cmds[1:], e)
+      return
+    except AttributeError:
+      pass
 
-    elif cmd == "stats" or cmd == "status":
-      if self.game_in_progress:
-        self.print_alive()
-        if self.time == "day":
-          self.tally_votes()
-          self.print_tally()
-      else:
-        self.reply("No game is in progress.", target)
-    elif cmd == "start game":      
-      self.start_game(nm_to_n(e.source()))
-    elif cmd == "votes":      
-        non_voters = []
-        voters = []
-        if self.villager_votes.keys():
-          for n in self.live_players:
-              if not self.villager_votes.has_key(n):
-                non_voters.append(n)
-              else:
-                voters.append(n)
-
-          if non_voters:
-            self.say_public("The following have no votes registered: %s"%(non_voters))
-          else:
-            self.say_public("Everyone has voted.")
-        else:
-            self.say_public("Nobody has voted yet.")
-
-    elif len(cmds)>1 and cmds[0]=="del":
-        for nick in cmds[1:]:
-            self._removeUser(nick)
-
-    elif cmd == "end game":
-      self.end_game(nm_to_n(e.source()))
-    elif len(cmds)==2 and cmds[0] == "renick":
-      self.connection.nick(cmds[1])
-    elif cmds[0] == "see":
-      if numcmds == 2:
-        viewee = self.match_name(cmds[1].strip())
-        if viewee is not None:        
-          self.see(target, viewee.strip())
-        else:
-          self.reply("See who?", target)
-      else:
-        self.reply("See who?", target)
-
-    elif cmds[0] == "kill":
-      if numcmds == 2:
-        killee = self.match_name(cmds[1].strip())
-        if killee is not None:
-          self.kill(target, killee)
-        else:
-          self.reply("Kill who?", target)
-      else:
-        self.reply("Kill who?", target)
-
-    elif cmds[0] == "lynch":
-      if numcmds == 2:
-        lynchee = self.match_name(cmds[1])
-        if lynchee is not None:
-          self.lynch_vote(nm_to_n(e.source()), lynchee.strip())
-        else:
-          self.reply("Lynch who?", target)
-      else:
-        self.reply("Lynch who?", target)
-
-
-    elif cmds[0] == "spectate":
-      for nick in cmds[1:]:
-        if nick in self.channels.values()[0].users():
-          self.spectators[nick] = None
-          self.reply('%s is now a spectator' % nick, target)
-        else:
-          self.reply('No such nick: %s' % nick, target)
-
-    elif cmds[0] == "unspectate":
-      for nick in cmds[1:]:
-        if nick in self.spectators:
-          del self.spectators[nick]
-          self.reply('%s is no longer a spectator' % nick, target)
-        else:
-          self.reply('%s was not a spectator anyway!' % nick, target)
-
-    else:
-      # unknown command:  respond appropriately.
-      
-      # reply either to public channel, or to person who /msg'd
-      if self.time is None:
-        self.reply("I don't understand '%s'."%(cmd), target)
-      elif self.time == "night":
-        self.reply("SSSHH!  It's night, everyone's asleep!", target)
-      elif self.time == "day":
-        self.reply("Hm?  Get back to lynching.", target)
+    # unknown command:  respond appropriately.
+    
+    # reply either to public channel, or to person who /msg'd
+    if self.time is None:
+      self.reply(e, "I don't understand '%s'."%(cmd))
+    elif self.time == "night":
+      self.reply(e, "SSSHH!  It's night, everyone's asleep!")
+    elif self.time == "day":
+      self.reply(e, "Hm?  Get back to lynching.")
 
 
 def usage(exitcode=1):
@@ -805,17 +796,17 @@ def main():
     if opt in ('-d', '--debug'):
       debug = True
 
-  if len(args) not in (0, 1):
+  if len(args) not in (1, 2):
     usage()
 
-  if len(args) > 0:
-    configfile = args[0]
+  if len(args) > 1:
+    configfile = args[1]
   else:
     configfile = 'wolfbot.conf'
 
   import ConfigParser
   c = ConfigParser.ConfigParser()
-  c.read('wolfbot.conf')
+  c.read(configfile)
   cfgsect = 'wolfbot'
   host = c.get(cfgsect, 'host')
   channel = c.get(cfgsect, 'channel')
@@ -851,7 +842,7 @@ class OutputManager(Thread):
         while self.queue:
           msg,target = self.queue.pop(0)
           self.connection.privmsg(target, msg)
-          time.sleep(.5)
+          time.sleep(.9)
         self.event.clear()
 
   def send(self, msg, target):
