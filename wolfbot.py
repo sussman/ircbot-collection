@@ -185,7 +185,8 @@ class WolfBot(SingleServerIRCBot):
     source = e.source()
     if source and irc_lower(nm_to_n(source)) == 'nickserv':
       if e.arguments()[0].find('IDENTIFY') >= 0:
-        self.queue.send('identify %s' % self.nickpass, 'nickserv')
+        if self.nickpass:
+          self.queue.send('identify %s' % self.nickpass, 'nickserv')
 
   def on_privmsg(self, c, e):
     from_nick = nm_to_n(e.source())
@@ -723,12 +724,24 @@ class WolfBot(SingleServerIRCBot):
 
 
 def main():
-  
-  if len(sys.argv) != 5:
-    print "Usage: wolfbot.py <server[:port]> <channel> <nickname> <nickpass>"
+  if len(sys.argv) not in (1, 2):
+    print "Usage: wolfbot.py [<config-file>]"
     sys.exit(1)
 
-  s = string.split(sys.argv[1], ":", 1)
+  if len(sys.argv) > 1:
+    configfile = sys.argv[1]
+  else:
+    configfile = 'wolfbot.conf'
+  import ConfigParser
+  c = ConfigParser.ConfigParser()
+  c.read('wolfbot.conf')
+  cfgsect = 'wolfbot'
+  host = c.get(cfgsect, 'host')
+  channel = c.get(cfgsect, 'channel')
+  nickname = c.get(cfgsect, 'nickname')
+  nickpass = c.get(cfgsect, 'nickpass')
+  
+  s = string.split(host, ":", 1)
   server = s[0]
   if len(s) == 2:
     try:
@@ -738,7 +751,6 @@ def main():
       sys.exit(1)
   else:
     port = defaultPort
-  channel, nickname, nickpass = sys.argv[2:5]
 
   bot = WolfBot(channel, nickname, nickpass, server, port)
   bot.start()

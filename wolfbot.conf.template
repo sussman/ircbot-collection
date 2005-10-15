@@ -1,0 +1,5 @@
+[wolfbot]
+host = irc.freenode.net
+channel = #wolf
+nickname = wolfbot
+nickpass = 
