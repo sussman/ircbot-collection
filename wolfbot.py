@@ -118,7 +118,7 @@ class WolfBot(SingleServerIRCBot):
   def __init__(self, channel, nickname, nickpass, server, port=defaultPort):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
-    self.desired_nickname = self.nickname = nickname
+    self.nickname = nickname
     self.nickpass = nickpass
     self.game_in_progress = 0
     self._reset_gamedata()
@@ -130,9 +130,6 @@ class WolfBot(SingleServerIRCBot):
   def on_nicknameinuse(self, c, e):
     self.nickname = c.get_nickname() + "_"
     c.nick(self.nickname)
-    self.queue.cmd(c.privmsg,
-        ('nickserv', 'ghost %s %s' % (self.desired_nickname, self.nickpass)))
-    self.queue.cmd(c.nick, (self.desired_nickname))
 
   def _renameUser(self, old, new):
     for list in (self.live_players, self.wolves, self.villagers):
@@ -758,13 +755,13 @@ class OutputManager(Thread):
       while 1:
         self.event.wait()
         while self.queue:
-          method, args = self.queue.pop(0)
-          method(*args)
+          msg,target = self.queue.pop(0)
+          self.connection.privmsg(target, msg)
           time.sleep(.5)
         self.event.clear()
 
   def send(self, msg, target):
-    self.queue.append((self.connection.privmsg, (msg.strip(),target)))
+    self.queue.append((msg.strip(),target))
     self.event.set()
 
 
