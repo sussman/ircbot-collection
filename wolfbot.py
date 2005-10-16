@@ -125,7 +125,7 @@ class WolfBot(SingleServerIRCBot):
     self.nickpass = nickpass
     self.game_in_progress = 0
     self.debug = debug
-    self.spectators = {}
+    self.active_players = {}
     self._reset_gamedata()
     self.queue = OutputManager(self.connection)
     self.queue.start()
@@ -173,7 +173,8 @@ class WolfBot(SingleServerIRCBot):
       if(old in list):
         list.append(new)
         list.remove(old)
-    for map in (self.wolf_votes, self.villager_votes, self.tally):
+    for map in (self.wolf_votes, self.villager_votes, self.tally,
+        self.active_players):
       if map.has_key(new):
         map[new]=map[old]
         del map[old]
@@ -181,6 +182,9 @@ class WolfBot(SingleServerIRCBot):
       self.seer=new
 
   def _removeUser(self, nick):
+    if self.active_players.has_key(nick):
+      del self.active_players[nick]
+
     found=0
     for l in (self.live_players, self.wolves, self.villagers):
       if nick not in l:
@@ -295,13 +299,15 @@ class WolfBot(SingleServerIRCBot):
       users = chobj.users()
       users.remove(self._nickname)
 
-      for nick in self.spectators.keys():
-        users.remove(nick)
+      for u in users[:]:
+        if not self.active_players.has_key(u):
+          users.remove(u)
 
       if len(users) < minUsers:
         self.say_public("Sorry, to start a game, there must be " + \
-                        "at least %d players in the channel (excluding me)."%(minUsers))
-        self.say_public(("I count only %d players right now." % len(users)))
+                        "at least active %d players."%(minUsers))
+        self.say_public(("I count only %d active players right now: %s."
+          % (len(users), users)))
 
       else:
 
@@ -667,6 +673,7 @@ class WolfBot(SingleServerIRCBot):
         self.print_tally()
     else:
       self.reply(e, "No game is in progress.")
+    self.reply(e, "The active players are %s" % (self.active_players.keys()))
 
   def cmd_status(self, args, e):
     self.cmd_stats(args, e)
@@ -732,23 +739,29 @@ class WolfBot(SingleServerIRCBot):
         return
     self.reply(e, "Lynch who?")
 
-  def cmd_spectate(self, args, e):
-    target = nm_to_n(e.source())
-    for nick in args:
-      if nick in self.channels.values()[0].users():
-        self.spectators[nick] = None
-        self.reply(e, '%s is now a spectator' % nick)
-      else:
-        self.reply(e, 'No such nick: %s' % nick)
+  def cmd_active(self, args, e):
+    player = nm_to_n(e.source())
+    if player in self.active_players:
+      self.reply(e, 'You are already an active player!')
+    else:
+      self.active_players[player] = None
+      self.reply(e, 'You are now an active player!')
 
-  def cmd_unspectate(self, args, e):
-    target = nm_to_n(e.source())
-    for nick in args:
-      if nick in self.spectators:
-        del self.spectators[nick]
-        self.reply(e, '%s is no longer a spectator' % nick)
+  def cmd_passive(self, args, e):
+    player = nm_to_n(e.source())
+    if args:
+      for nick in args:
+        if self.active_players.has_key(nick):
+          del self.active_players[nick]
+          self.reply(e, '%s is no longer an active player' % nick)
+        else:
+          self.reply(e, '%s was not an active player' % nick)
+    else:
+      if self.active_players.has_key(player):
+        del self.active_players[player]
+        self.reply(e, 'You are no longer an active player')
       else:
-        self.reply(e, '%s was not a spectator anyway!' % nick)
+        self.reply(e, 'You were not an active player')
 
   def do_command(self, e, cmd):
     """This is the function called whenever someone sends a public or
@@ -766,10 +779,13 @@ class WolfBot(SingleServerIRCBot):
         return 0
 
     try:
-      getattr(self, "cmd_" + cmds[0])(cmds[1:], e)
-      return
+      cmd_handler = getattr(self, "cmd_" + cmds[0])
     except AttributeError:
-      pass
+      cmd_handler = None
+    
+    if cmd_handler:
+      cmd_handler(cmds[1:], e)
+      return
 
     # unknown command:  respond appropriately.
     
