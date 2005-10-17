@@ -1,0 +1,181 @@
+              Werewolf, a psychological mindgame.
+              ===================================
+
+$LastChangedDate$
+
+Contents:
+
+    I. THE GAME
+   II. GAME VARIANTS
+  III. THE BOT
+   IV. PARTICIPATING IN THE DEVELOPMENT
+
+
+I.   THE GAME
+
+     Werewolf is a mind-bending roleplaying game, usually played
+     around a table with cards.  It is meant to be played by
+     approximately 10 players and a moderator, although it can be
+     played with 5 to any number of players, with some adjustements.
+
+     The players are the inhabitants of a small, quiet village.  One
+     day, darkness befalls their quiet lives.  Sheep are found killed
+     and horribly mutilated, house doors are scratched, and every
+     night inhuman howls echo through the nearby woods.  There are two
+     werewolves among their number, and they must find and kill these
+     abominations before they overcome the village.
+
+     The game starts with the players being dealt a card each.  Two
+     cards represent werewolves, all the others are regular villagers.
+     Players should note which they are and not reveal their identity.
+     Then, the first round begins.  The moderator says "Night falls,"
+     and all players close their eyes.
+
+     He then announces "Werewolves, awaken."  The wolves open their
+     eyes and identify each other.  They must decide (silently) on
+     which other player they want to kill that night.  Once they are
+     in agreement, they close their eyes, and the moderator announces
+     "The night ends."  All players open their eyes, and the moderator
+     announces which player died during the night.  The deceased
+     reveals his identity by showing his card.
+
+     All remaining players (including the werewolves) must now launch
+     accusations at each other, debate and choose whom they will be
+     lynching that day.  The decision is carried out by a majority
+     vote, and the lynched player also reveals his identity.  Once the
+     lynching is carried out, night falls and the cycle repeats.
+
+     The objective of werewolves is reduce the number of villagers
+     whilst avoiding detection.  If the werewolves equal or outnumber
+     regular villagers, they attack immediately and win the game.  The
+     objective for villagers, of course, is to eliminate the two
+     werewolves before getting turned into dog meat.
+
+     The whole fun of the game relies on the fact that villagers know
+     nothing of the other players until it is too late, one way or the
+     other.  The gameplay therefore entirely relies on the ability to
+     roleplay (and, of course, to lie convincingly) during the daytime
+     debates.  Also, any actions that take place during the night must
+     be taken out in absolute silence (or lots of noise, depending on
+     group preference), so as to not give away any information.
+
+
+II.  GAME VARIANTS
+
+     The above is the ruleset for the basic game of Werewolf.  Over
+     the years since its creation, many people have extended this
+     ruleset, mainly by adding other "special" characters.  Here are a
+     few variants that exist:
+
+      * SEER: One player card is marked as the seer.  The Seer is a
+                regular villager during the day.  During each night,
+                before the werewolves awaken, the moderator awakes the
+                Seer, who may then designate one other player.  The
+                moderator will sign a reply indicating if that player
+                is a werewolf or not.  The Seer may reveal himself at
+                any time during the day, at the cost of obviously
+                becoming the werewolves' main target.
+
+
+      * WITCH: The Witch has the ability, during each night, to
+                prepare and use a single artefact before the
+                werewolves kill.  The Witch may prepare a wolfsbane
+                essence and cast it on any player (including herself).
+                If the wolves decide to kill that player, then the
+                wolfsbane essence repels them and nobody dies that
+                night.  Or, the Witch may prepare and use a poison
+                dart to kill one other player.  Saves are not specific
+                (the moderator should simply say "Nobody dies," rather
+                than "Brian was saved"), and neither are Witch-kills.
+
+
+      * CUPID: Cupid is a villager who has a role during the first
+                night.  Before any killing takes place, the moderator
+                awakens Cupid and makes him choose two players (he can
+                choose himself to be one).  The moderator silently
+                touches those two player, who awaken and recognize
+                each other.  From then on, they are lovers: if one
+                days for any reason, the other immediately dies of
+                broken heart.  They must keep their love secret.  If
+                the union is of villager/wolf nature, then the lovers
+                must win the game by being the sole survivors ("Ours
+                is a forbidden love.")
+
+
+      * LONE WOLF: Play with three werewolves.  Two are regular, the
+                third is the Lone Wolf.  He does exactly the same
+                actions as the other werewolves, but his objective is
+                to have the other two wolves killed, in addition to
+                overrunning the village.  He does not reveal himself
+                to the other werewolves, and must avoid death at the
+                hands of the villagers in the same way.
+
+      * THING: In this variant, players during the day vote to test,
+                not kill, one of their number.  If the testee is a
+                werewolf, then she dies and the players get another
+                testing.  However, werewolves don't kill during the
+                night either...  They convert their victim into a
+                werewolf, who then turns against her former allies!
+                Can you track the changing alliances and mutating
+                playerscape?
+
+
+     There is a staggering number of variants floating around "the
+     Internets", a lot of which can be found on the Princeton Graduate
+     Mafia's homepage:
+
+         http://www.princeton.edu/~mafia/rules.htm
+
+     Their rules and variants are for Werewolf's ancestor, called
+     Mafia.  However, the concepts generally transpose well from one
+     to the other.
+
+III. THE BOT
+
+     The Wolfbot is an IRC bot that plays the role of the moderator in
+     an IRC channel, allowing players to play Werewolf over the net.
+     All night actions are performed by private messaging the
+     concerned users, whereas all daytime actions happen on the IRC
+     channel in which the Wolfbot is operating.  Players communicate
+     their decisions through simple commands such as 'kill <villager>'
+     or 'lynch <suspect>'.  Wolfbot keeps a track of the game and
+     announces deaths and the eventual victory.
+
+     Wolfbot currently moderates a game of "Werewolves and the Seer",
+     the variant of the original rules which includes the Seer as
+     extra character.  As such, a game of Wolfbot Werewolf is best
+     enjoyed at around ten players.
+
+     Wolfbot is currently configured through a simple configuration
+     file, which lists the IRC server to connect to, the channel to
+     join, the nick to use and an optional password to "log in" as
+     that user with NickServ, a nickname registration service that
+     some networks have running.  The Freenode for instance requires
+     Wolfbot to log into NickServ to be allowed to private message the
+     players.
+
+     Once Wolfbot has joined a channel, any player can start a new
+     game of Werewolf by telling the bot to do so.  This is done by
+     starting the line with "bot_nick: " followed by the actual
+     command.  So, to start a game with a bot called 'wolfbot', you
+     would enter "wolfbot: start game."
+
+     When a game starts, Wolfbot asks people to join the game by
+     telling him "join".  Once a sufficient number of players are
+     joined, the game originator tells wolfbot "start" to begin the
+     first round.
+
+     Once the game is started, Wolfbot will communicate with players
+     in private to tell them what role they have, and to instruct them
+     to perform their night duties.
+
+     If you want to drop in and meet fellow Werewolfers for a game,
+     feel free to visit the "official" channel, which is #wolf on
+     irc.freenode.net .
+
+
+IV.  PARTICIPATING IN THE DEVELOPMENT
+
+     IF you wish to participate in making Wolfbot a better Werewolf
+     moderator, do drop in on the "official" channel and discuss it.
+     Wolfbot is always happy to welcome new developers!
