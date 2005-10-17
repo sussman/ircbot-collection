@@ -14,9 +14,9 @@
 # License along with this library; if not, write to the Free Software
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA
 #
-# Joel Rosdahl <joel@rosdahl.net>
+# keltus <keltus@users.sourceforge.net>
 #
-# $Id: irclib.py,v 1.23 2004/07/09 08:54:40 jrosdahl Exp $
+# $Id: irclib.py,v 1.37 2005/08/18 20:11:22 keltus Exp $
 
 """irclib -- Internet Relay Chat (IRC) protocol client library.
 
@@ -74,7 +74,7 @@ import sys
 import time
 import types
 
-VERSION = 0, 4, 2
+VERSION = 0, 4, 5
 DEBUG = 0
 
 # TODO
@@ -118,7 +118,7 @@ class IRC:
         server = irc.server()
         server.connect(\"irc.some.where\", 6667, \"my_nickname\")
         server.privmsg(\"a_nickname\", \"Hi there!\")
-        server.process_forever()
+        irc.process_forever()
 
     This will connect to the IRC server irc.some.where on port 6667
     using the nickname my_nickname and send the message \"Hi there!\"
@@ -194,7 +194,7 @@ class IRC:
         t = time.time()
         while self.delayed_commands:
             if t >= self.delayed_commands[0][0]:
-                apply(self.delayed_commands[0][1], self.delayed_commands[0][2])
+                self.delayed_commands[0][1](*self.delayed_commands[0][2])
                 del self.delayed_commands[0]
             else:
                 break
@@ -235,7 +235,6 @@ class IRC:
     def disconnect_all(self, message=""):
         """Disconnects all connections."""
         for c in self.connections:
-            c.quit(message)
             c.disconnect(message)
 
     def add_global_handler(self, event, handler, priority=0):
@@ -382,6 +381,7 @@ class ServerConnection(Connection):
     def __init__(self, irclibobj):
         Connection.__init__(self, irclibobj)
         self.connected = 0  # Not connected yet.
+        self.socket = None
 
     def connect(self, server, port, nickname, password=None, username=None,
                 ircname=None, localaddress="", localport=0):
@@ -410,9 +410,8 @@ class ServerConnection(Connection):
         Returns the ServerConnection object.
         """
         if self.connected:
-            self.quit("Changing server")
+            self.disconnect("Changing servers")
 
-        self.socket = None
         self.previous_buffer = ""
         self.handlers = {}
         self.real_server_name = ""
@@ -431,6 +430,8 @@ class ServerConnection(Connection):
             self.socket.bind((self.localaddress, self.localport))
             self.socket.connect((self.server, self.port))
         except socket.error, x:
+            self.socket.close()
+            self.socket = None
             raise ServerConnectionError, "Couldn't connect to socket: %s" % x
         self.connected = 1
         if self.irclibobj.fn_to_add_socket:
@@ -528,10 +529,14 @@ class ServerConnection(Connection):
                 if len(a) == 2:
                     arguments.append(a[1])
 
+            # Translate numerics into more readable strings.
+            if numeric_events.has_key(command):
+                command = numeric_events[command]
+
             if command == "nick":
                 if nm_to_n(prefix) == self.real_nickname:
                     self.real_nickname = arguments[0]
-            elif command == "001":
+            elif command == "welcome":
                 # Record the nickname in case the client changed nick
                 # in a nicknameinuse callback.
                 self.real_nickname = arguments[0]
@@ -561,6 +566,9 @@ class ServerConnection(Connection):
                             print "command: %s, source: %s, target: %s, arguments: %s" % (
                                 command, prefix, target, m)
                         self._handle_event(Event(command, prefix, target, m))
+                        if command == "ctcp" and m[0] == "ACTION":
+                            # Emit an action event too. We're generous today.
+                            self._handle_event(Event("action", prefix, target, m[1:]))
                     else:
                         if DEBUG:
                             print "command: %s, source: %s, target: %s, arguments: %s" % (
@@ -570,7 +578,7 @@ class ServerConnection(Connection):
                 target = None
 
                 if command == "quit":
-                    arguments = [arguments[0]]
+                    arguments = arguments[0]
                 elif command == "ping":
                     target = arguments[0]
                 else:
@@ -580,10 +588,6 @@ class ServerConnection(Connection):
                 if command == "mode":
                     if not is_channel(target):
                         command = "umode"
-
-                # Translate numerics into more readable strings.
-                if numeric_events.has_key(command):
-                    command = numeric_events[command]
 
                 if DEBUG:
                     print "command: %s, source: %s, target: %s, arguments: %s" % (
@@ -609,14 +613,14 @@ class ServerConnection(Connection):
 
         See documentation for IRC.add_global_handler.
         """
-        apply(self.irclibobj.add_global_handler, args)
+        self.irclibobj.add_global_handler(*args)
 
     def remove_global_handler(self, *args):
         """Remove global handler.
 
         See documentation for IRC.remove_global_handler.
         """
-        apply(self.irclibobj.remove_global_handler, args)
+        self.irclibobj.remove_global_handler(*args)
 
     def action(self, target, action):
         """Send a CTCP ACTION command."""
@@ -644,6 +648,8 @@ class ServerConnection(Connection):
         """
         if not self.connected:
             return
+
+        self.quit(message)
 
         self.connected = 0
         try:
@@ -729,12 +735,12 @@ class ServerConnection(Connection):
         """Send an OPER command."""
         self.send_raw("OPER %s %s" % (nick, password))
 
-    def part(self, channels):
+    def part(self, channels, message=""):
         """Send a PART command."""
         if type(channels) == types.StringType:
-            self.send_raw("PART " + channels)
+            self.send_raw("PART " + channels + (message and (" " + message)))
         else:
-            self.send_raw("PART " + string.join(channels, ","))
+            self.send_raw("PART " + string.join(channels, ",") + (message and (" " + message)))
 
     def pass_(self, password):
         """Send a PASS command."""
@@ -760,6 +766,8 @@ class ServerConnection(Connection):
 
     def quit(self, message=""):
         """Send a QUIT command."""
+        # Note that many IRC servers don't use your QUIT message
+        # unless you've been connected for at least 5 minutes!
         self.send_raw("QUIT" + (message and (" :" + message)))
 
     def sconnect(self, target, port="", server=""):
@@ -1109,9 +1117,9 @@ class Event:
 
             eventtype -- A string describing the event.
 
-            source -- The originator of the event (a nick mask or a server). XXX Correct?
+            source -- The originator of the event (a nick mask or a server).
 
-            target -- The target of the event (a nick or a channel). XXX Correct?
+            target -- The target of the event (a nick or a channel).
 
             arguments -- Any event specific arguments.
         """
@@ -1540,6 +1548,8 @@ protocol_events = [
     "pubmsg",
     "pubnotice",
     "quit",
+    "invite",
+    "pong",
 ]
 
 all_events = generated_events + protocol_events + numeric_events.values()
