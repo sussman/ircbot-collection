@@ -197,10 +197,6 @@ class WolfBot(SingleServerIRCBot):
         setattr(self, var, new)
 
   def _removeUser(self, nick):
-    if nick not in self.live_players + self.dead_players:
-      self.say_public("There's nobody playing by the name %s" % nick)
-      return
-
     if nick == self.game_starter:
       self.game_starter = None
     if nick in self.live_players:
@@ -744,6 +740,8 @@ class WolfBot(SingleServerIRCBot):
 
   def cmd_del(self, args, e):
     for nick in args:
+      if nick not in self.live_players + self.dead_players:
+        self.reply(e, "There's nobody playing by the name %s" % nick)
       self._removeUser(nick)
 
   def cmd_renick(self, args, e):
