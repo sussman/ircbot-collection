@@ -43,6 +43,10 @@ from threading import Thread, Event
 minUsers=6
 defaultPort=6667
 
+svn_url = \
+"$URL$"
+svn_url = svn_url[svn_url.find(' ')+1:svn_url.rfind('/')+1]
+
 # Printed when a game first starts:
 
 new_game_texts = \
@@ -175,46 +179,64 @@ class WolfBot(SingleServerIRCBot):
     c.nick(c.get_nickname() + "_")
 
   def _renameUser(self, old, new):
-    for list in (self.live_players, self.wolves, self.villagers):
-      if(old in list):
+    for list in (self.live_players, self.dead_players, self.wolves,
+        self.villagers, self.originalwolves):
+      if old in list:
         list.append(new)
         list.remove(old)
-    for map in (self.wolf_votes, self.villager_votes, self.tally,
-        self.players):
+    for map in (self.wolf_votes, self.villager_votes, self.tally):
       if map.has_key(new):
-        map[new]=map[old]
+        map[new] = map[old]
         del map[old]
-    if new == self.seer:
-      self.seer=new
+    for map in (self.wolf_votes, self.villager_votes):
+      for k, v in map.items():
+        if v == old:
+          map[k] = new
+    for var in ('game_starter', 'seer', 'seer_target', 'wolf_target'):
+      if getattr(self, var) == old:
+        setattr(self, var, new)
 
   def _removeUser(self, nick):
-    if self.players.has_key(nick):
-      del self.players[nick]
+    if nick not in self.live_players + self.dead_players:
+      self.say_public("There's nobody playing by the name %s" % nick)
+      return
 
-    found=0
-    for l in (self.live_players, self.wolves, self.villagers):
-      if nick not in l:
-        found=1
-    if not found:
-        self.say_public("There's nobody playing by that name. %s"%l)
+    if nick == self.game_starter:
+      self.game_starter = None
+    if nick in self.live_players:
+      self.say_public("%s left while nobody was looking!" % nick)
+      self.live_players.remove(nick)
+      if self.gamestate == self.GAMESTATE_STARTING:
+        # No more to do
         return
-
-
-    if(self.live_players):
-      if nick in self.live_players:
-        self.say_public("%s left while nobody was looking!" %(nick))
-        if(nick in self.live_players):
-            self.live_players.remove(nick)
-        if(nick in self.wolves):
-            self.wolves.remove(nick)
-            self.say_public("%s's apartment always smelled like wet dog!"%(nick))
-        if(nick in self.villagers):
-            self.villagers.remove(nick)
-            self.say_public("%s was a quiet, normal sort of feller. Kept to himself...."%(nick))
-        if(nick == self.seer):
-            self.say_public("%s was blessed with unusual insight into lycanthropism."%(nick))
-
-        self.check_game_over()
+      self.dead_players.append(nick)
+      if nick in self.wolves:
+        self.wolves.remove(nick)
+        self.say_public("%s's apartment always smelled like wet dog!" % nick)
+      if nick in self.villagers:
+        self.villagers.remove(nick)
+        self.say_public("%s was a quiet, normal sort of feller. "
+            "Kept to himself...." % nick)
+      if nick == self.seer:
+        self.say_public("%s was blessed with unusual insight into "
+            "lycanthropism." % nick)
+      if nick == self.seer_target:
+        self.say_private("Due to %s's unexpected erasure from reality, "
+            "you may See once again this night." % nick, self.seer)
+        self.seer_target = None
+      if nick == self.wolf_target:
+        for wolf in self.wolves:
+          self.say_private("Due to %s's unexpected erasure from reality, "
+              "you can choose someone else to kill tonight." % nick, wolf)
+        self.wolf_target = None
+      for map in (self.wolf_votes, self.villager_votes, self.tally):
+        if map.has_key(nick):
+          del map[nick]
+      for map in (self.wolf_votes, self.villager_votes):
+        for k, v in map.items():
+          if v == nick:
+            del map[k]
+      self.check_game_over()
 
 
   def on_quit(self, c, e):
@@ -259,7 +281,6 @@ class WolfBot(SingleServerIRCBot):
 
   def _reset_gamedata(self):
     self.gamestate = self.GAMESTATE_NONE
-    self.players = {}
     self.time = None
     self.game_starter = None
     self.live_players = []
@@ -267,11 +288,12 @@ class WolfBot(SingleServerIRCBot):
     self.wolves = []
     self.villagers = []
     self.seer = None
-    self.originalwolf1 = None
-    self.originalwolf2 = None
+    self.originalwolves = []
+    # Night round variables
     self.seer_target = None
     self.wolf_target = None
     self.wolf_votes = {}
+    # Day round variables
     self.villager_votes = {}
     self.tally = {}
 
@@ -308,7 +330,7 @@ class WolfBot(SingleServerIRCBot):
       self._reset_gamedata()
       self.gamestate = self.GAMESTATE_STARTING
       self.game_starter = game_starter
-      self.players[game_starter] = None
+      self.live_players.append(game_starter)
       self.say_public("A new game has been started by %s; "
           "say '%s: join' to join the game."
           % (self.game_starter, self.connection.get_nickname()))
@@ -317,29 +339,25 @@ class WolfBot(SingleServerIRCBot):
       return
 
     if self.gamestate == self.GAMESTATE_STARTING:
-      if game_starter != self.game_starter:
+      if self.game_starter and game_starter != self.game_starter:
         self.say_public("Game startup was begun by %s; "
             "that person must finish starting it." % self.game_starter)
         return
+      self.game_starter = game_starter
 
-      users = self.players.keys()
-
-      if len(users) < minUsers:
+      if len(self.live_players) < minUsers:
         self.say_public("Sorry, to start a game, there must be " + \
                         "at least active %d players."%(minUsers))
         self.say_public(("I count only %d active players right now: %s."
-          % (len(users), users)))
+          % (len(self.live_players), self.live_players)))
 
       else:
-        # Everyone starts out alive.
-        self.live_players = users[:]
-
         # Randomly select two wolves and a seer.  Everyone else is a villager.
+        users = self.live_players[:]
         self.say_public("A new game has begun! Please wait, assigning roles...")
         self.wolves.append(users.pop(random.randrange(len(users))))
         self.wolves.append(users.pop(random.randrange(len(users))))
-        self.originalwolf1 = self.wolves[0]
-        self.originalwolf2 = self.wolves[1]
+        self.originalwolves = self.wolves[:]
         self.seer = users.pop(random.randrange(len(users)))
         for user in users:
           self.villagers.append(user)
@@ -368,7 +386,7 @@ class WolfBot(SingleServerIRCBot):
     if self.gamestate == self.GAMESTATE_NONE:
       self.say_public(\
                "No game is in progress.  Use 'start' to begin a game.")
-    elif game_ender != self.game_starter:
+    elif self.game_starter and game_ender != self.game_starter:
       self.say_public(\
         ("Sorry, only the starter of the game (%s) may end it." %\
          self.game_starter))
@@ -383,8 +401,9 @@ class WolfBot(SingleServerIRCBot):
   def reveal_all_identities(self):
     "Print everyone's identities."
 
-    self.say_public(("*** The two wolves were %s and %s, the seer was %s. Everyone else was a normal villager" % \
-                     (self.originalwolf1, self.originalwolf2, self.seer)))
+    self.say_public(("*** The two wolves were %s and %s, the seer was %s. "
+      "Everyone else was a normal villager"
+      % (self.originalwolves[0], self.originalwolves[1], self.seer)))
 
   def check_game_over(self):
     """End the game if either villagers or werewolves have won.
@@ -530,35 +549,37 @@ class WolfBot(SingleServerIRCBot):
     "Allow a werewolf to express intent to 'kill' somebody."
     if self.time != "night":
       self.reply(e, "Are you a werewolf?  In any case, it's not nighttime.")
-    else:
-      if nm_to_n(e.source()) not in self.wolves:
-        self.reply(e, "Huh?")
-      else:
-        if who not in self.live_players:
-          self.reply(e, "That player either doesn't exist, or is dead.")
-        else:
-          if len(self.wolves) == 2:
-            # two wolves are alive:
-            self.wolf_votes[nm_to_n(e.source())] = who
-            self.reply(e, "Your vote is acknowledged.")
+      return
+    if nm_to_n(e.source()) not in self.wolves:
+      self.reply(e, "Huh?")
+      return
+    if who not in self.live_players:
+      self.reply(e, "That player either doesn't exist, or is dead.")
+      return
+    if len(self.wolves) > 1:
+      # Multiple wolves are alive:
+      self.wolf_votes[nm_to_n(e.source())] = who
+      self.reply(e, "Your vote is acknowledged.")
 
-            # if both wolves have voted, look for agreement:
-            voters = self.wolf_votes.keys()
-            if len(voters) == 2:
-              if self.wolf_votes[voters[0]] == self.wolf_votes[voters[1]]:
-                self.wolf_target = self.wolf_votes[voters[0]]
-                self.reply(e, "It is done.  You and the other werewolf agree.")
-                if self.check_night_done():
-                  self.day()
-              else:
-                self.reply(e, "Hm, I sense disagreement or ambivalence.")
-                self.reply(e, "You two wolves should decide on one target.")
-          else:
-            # only one wolf alive, no need to agree with anyone.
-            self.wolf_target = who
-            self.reply(e, "Your decision is acknowledged.")
-            if self.check_night_done():
-              self.day()
+      # If all wolves have voted, look for agreement:
+      if len(self.wolf_votes) == len(self.wolves):
+        for killee in self.wolf_votes.values():
+          if who != killee:
+            break
+        else:
+          self.wolf_target = who
+          self.reply(e, "It is done. The werewolves agree.")
+          if self.check_night_done():
+            self.day()
+          return
+        self.reply(e, "Hm, I sense disagreement or ambivalence.")
+        self.reply(e, "You wolves should decide on one target.")
+    else:
+      # only one wolf alive, no need to agree with anyone.
+      self.wolf_target = who
+      self.reply(e, "Your decision is acknowledged.")
+      if self.check_night_done():
+        self.day()
 
 
   def kill_player(self, player):
@@ -593,7 +614,7 @@ class WolfBot(SingleServerIRCBot):
     for key in self.villager_votes.keys():
       lynchee = self.villager_votes[key]
       if self.tally.has_key(lynchee):
-        self.tally[lynchee] = self.tally[lynchee] + 1
+        self.tally[lynchee] += 1
       else:
         self.tally[lynchee] = 1
 
@@ -689,7 +710,7 @@ class WolfBot(SingleServerIRCBot):
         self.print_tally()
     elif self.gamestate == self.GAMESTATE_STARTING:
       self.reply(e, "A new game is starting, current players are %s"
-          % (self.players.keys()))
+          % (self.live_players,))
     else:
       self.reply(e, "No game is in progress.")
 
@@ -765,11 +786,16 @@ class WolfBot(SingleServerIRCBot):
       self.reply(e, 'Game is in progress; please wait for the next game.')
       return
     player = nm_to_n(e.source())
-    if player in self.players:
+    if player in self.live_players:
       self.reply(e, 'You are in the game!')
     else:
-      self.players[player] = None
+      self.live_players.append(player)
       self.reply(e, 'You are now in the game.')
+
+  def cmd_aboutbot(self, args, e):
+    self.reply(e, "I am a bot written in Python "
+        "using the python-irclib library")
+    self.reply(e, "My source code is available at %s" % svn_url)
 
   def do_command(self, e, cmd):
     """This is the function called whenever someone sends a public or
