@@ -28,7 +28,7 @@ The main commands are:
     end game -- quit the current werewolf game (you must have started it)
 
     stats -- print information about state of game-in-progress.
-    
+
 """
 
 import sys, string, random, time
@@ -50,10 +50,10 @@ new_game_texts = \
  in this group appears to be a common villager, but three of\
  you are 'special'.  Two people are actually evil werewolves, seeking\
  to kill everyone while concealing their identity.",
- 
+
  "And one of you is also a 'seer'; you have the ability to learn\
  whether a specific person is or is not a werewolf.",
- 
+
  "As a community, your group objective is to weed out the werewolves\
  and lynch them both, before you're all killed in your sleep."]
 
@@ -131,7 +131,7 @@ class WolfBot(SingleServerIRCBot):
     self.queue.start()
     self.start()
 
-    
+
   _uninteresting_events = {
     'all_raw_messages': None,
     'yourhost': None,
@@ -194,7 +194,7 @@ class WolfBot(SingleServerIRCBot):
         return
 
 
-    if(self.live_players): 
+    if(self.live_players):
       if nick in self.live_players:
         self.say_public("%s left while nobody was looking!" %(nick))
         if(nick in self.live_players):
@@ -221,7 +221,7 @@ class WolfBot(SingleServerIRCBot):
   def on_nick(self, c, e):
     self._renameUser(nm_to_n(e.source()), e.target())
 
-      
+
   def on_welcome(self, c, e):
     c.join(self.channel)
     if c.get_nickname() != self.nickname:
@@ -240,7 +240,7 @@ class WolfBot(SingleServerIRCBot):
   def on_privmsg(self, c, e):
     self.do_command(e, e.arguments()[0])
 
-  
+
   def on_part(self, c, e):
     self._removeUser(nm_to_n(e.source()))
 
@@ -285,7 +285,7 @@ class WolfBot(SingleServerIRCBot):
       self.say_public("%s: %s" % (nm_to_n(e.source()), text))
     else:
       self.say_private(nm_to_n(e.source()), text)
-    
+
 
   def start_game(self, game_starter):
     "Initialize a werewolf game -- assign roles and notify all players."
@@ -295,7 +295,7 @@ class WolfBot(SingleServerIRCBot):
       self.say_public(\
         ("A game has already been started by %s;  that person must end it." %\
          self.game_starter))
-    else: 
+    else:
       users = chobj.users()
       users.remove(self._nickname)
 
@@ -315,10 +315,10 @@ class WolfBot(SingleServerIRCBot):
 
         # Remember who started the game.
         self.game_starter = game_starter
-        
+
         # Everyone starts out alive.
         self.live_players = users[:]
-        
+
         # Randomly select two wolves and a seer.  Everyone else is a villager.
         self.say_public("A new game has begun! Please wait, assigning roles...")
         self.wolves.append(users.pop(random.randrange(len(users))))
@@ -338,14 +338,14 @@ class WolfBot(SingleServerIRCBot):
 
         if self.debug:
           print "SEER: %s, WOLVES: %s" % (self.seer, self.wolves)
-        
+
         for text in new_game_texts:
           self.say_public(text)
         self.game_in_progress = 1
 
         # Start game by putting bot into "night" mode.
         self.night()
-        
+
 
   def end_game(self, game_ender):
     "Quit a game in progress."
@@ -388,7 +388,7 @@ class WolfBot(SingleServerIRCBot):
       msg = "The werewolves have no need to hide anymore; "
       msg = msg + "They attack the remaining villagers. "
       msg = msg + "The WEREWOLVES have WON."
-      self.say_public(msg)    
+      self.say_public(msg)
       self.end_game(self.game_starter)
       return 1
 
@@ -421,8 +421,8 @@ class WolfBot(SingleServerIRCBot):
     except IndexError:
       return
 
-        
-        
+
+
   def night(self):
     "Declare a NIGHT episode of gameplay."
 
@@ -474,7 +474,7 @@ class WolfBot(SingleServerIRCBot):
       self.seer_target = None
       self.wolf_target = None
       self.wolf_votes = {}
-      
+
       # Give daytime instructions.
       self.print_alive()
       for text in day_game_texts:
@@ -495,7 +495,7 @@ class WolfBot(SingleServerIRCBot):
       if nm_to_n(e.source()) != self.seer:
         self.reply(e, "Huh?")
       else:
-        if who not in self.live_players:          
+        if who not in self.live_players:
           self.reply(e, "That player either doesn't exist, or is dead.")
         else:
           if self.seer_target is not None:
@@ -518,7 +518,7 @@ class WolfBot(SingleServerIRCBot):
       if nm_to_n(e.source()) not in self.wolves:
         self.reply(e, "Huh?")
       else:
-        if who not in self.live_players:          
+        if who not in self.live_players:
           self.reply(e, "That player either doesn't exist, or is dead.")
         else:
           if len(self.wolves) == 2:
@@ -586,18 +586,18 @@ class WolfBot(SingleServerIRCBot):
     """If there is a majority of lynch-votes for one player, return
     that player's name.  Else return None."""
 
-    majority_needed = (len(self.live_players)/2) + 1 
+    majority_needed = (len(self.live_players)/2) + 1
     for lynchee in self.tally.keys():
       if self.tally[lynchee] >= majority_needed:
         return lynchee
     else:
       return None
-  
-  
+
+
   def print_tally(self):
     "Publically display the vote tally."
 
-    majority_needed = (len(self.live_players)/2) + 1 
+    majority_needed = (len(self.live_players)/2) + 1
     msg = ("%d votes needed for a majority.  Current vote tally: " \
            % majority_needed)
     for lynchee in self.tally.keys():
@@ -607,7 +607,7 @@ class WolfBot(SingleServerIRCBot):
         msg = msg + ("(%s : 1 vote) " % lynchee)
     self.say_public(msg)
 
-      
+
   def print_alive(self):
     "Declare who's still alive."
     msg = "The following players are still alive: %s"%', '.join(self.live_players)
@@ -696,7 +696,7 @@ class WolfBot(SingleServerIRCBot):
         else:
           voters.append(n)
       if non_voters:
-        self.say_public("The following have no votes registered: %s" 
+        self.say_public("The following have no votes registered: %s"
             % (non_voters))
       else:
         self.say_public("Everyone has voted.")
@@ -716,7 +716,7 @@ class WolfBot(SingleServerIRCBot):
     target = nm_to_n(e.source())
     if len(args) == 1:
       viewee = self.match_name(args[0].strip())
-      if viewee is not None:        
+      if viewee is not None:
         self.see(e, viewee.strip())
         return
     self.reply(e, "See who?")
@@ -782,13 +782,13 @@ class WolfBot(SingleServerIRCBot):
       cmd_handler = getattr(self, "cmd_" + cmds[0])
     except AttributeError:
       cmd_handler = None
-    
+
     if cmd_handler:
       cmd_handler(cmds[1:], e)
       return
 
     # unknown command:  respond appropriately.
-    
+
     # reply either to public channel, or to person who /msg'd
     if self.time is None:
       self.reply(e, "I don't understand '%s'."%(cmd))
@@ -832,7 +832,7 @@ def main():
   channel = c.get(cfgsect, 'channel')
   nickname = c.get(cfgsect, 'nickname')
   nickpass = c.get(cfgsect, 'nickpass')
-  
+
   s = string.split(host, ":", 1)
   server = s[0]
   if len(s) == 2:
@@ -875,4 +875,3 @@ if __name__ == "__main__":
     main()
   except KeyboardInterrupt:
     print "Shutting down."
-
