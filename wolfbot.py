@@ -40,7 +40,7 @@ from threading import Thread, Event
 # General texts for narrating the game.  Change these global strings
 # however you wish, without having to muck with the core logic!
 
-minUsers=5
+minUsers=6
 defaultPort=6667
 
 # Printed when a game first starts:
@@ -115,6 +115,7 @@ day_game_texts = \
 
 
 class WolfBot(SingleServerIRCBot):
+  GAMESTATE_NONE, GAMESTATE_STARTING, GAMESTATE_RUNNING  = range(3)
   def __init__(self, channel, nickname, nickpass, server, port=defaultPort,
       debug=False):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
@@ -123,13 +124,18 @@ class WolfBot(SingleServerIRCBot):
     # have at any particular time is c.get_nickname().
     self.nickname = nickname
     self.nickpass = nickpass
-    self.game_in_progress = 0
     self.debug = debug
-    self.active_players = {}
     self._reset_gamedata()
     self.queue = OutputManager(self.connection)
     self.queue.start()
-    self.start()
+    try:
+      self.start()
+    except KeyboardInterrupt:
+      self.connection.quit("Ctrl-C at console")
+      print "Quit IRC."
+    except Exception, e:
+      self.connection.quit("%s: %s" % (e.__class__.__name__, e.args))
+      raise
 
 
   _uninteresting_events = {
@@ -174,7 +180,7 @@ class WolfBot(SingleServerIRCBot):
         list.append(new)
         list.remove(old)
     for map in (self.wolf_votes, self.villager_votes, self.tally,
-        self.active_players):
+        self.players):
       if map.has_key(new):
         map[new]=map[old]
         del map[old]
@@ -182,8 +188,8 @@ class WolfBot(SingleServerIRCBot):
       self.seer=new
 
   def _removeUser(self, nick):
-    if self.active_players.has_key(nick):
-      del self.active_players[nick]
+    if self.players.has_key(nick):
+      del self.players[nick]
 
     found=0
     for l in (self.live_players, self.wolves, self.villagers):
@@ -252,6 +258,8 @@ class WolfBot(SingleServerIRCBot):
 
 
   def _reset_gamedata(self):
+    self.gamestate = self.GAMESTATE_NONE
+    self.players = {}
     self.time = None
     self.game_starter = None
     self.live_players = []
@@ -291,17 +299,30 @@ class WolfBot(SingleServerIRCBot):
     "Initialize a werewolf game -- assign roles and notify all players."
     chname, chobj = self.channels.items()[0]
 
-    if self.game_in_progress:
-      self.say_public(\
-        ("A game has already been started by %s;  that person must end it." %\
-         self.game_starter))
-    else:
-      users = chobj.users()
-      users.remove(self._nickname)
+    if self.gamestate == self.GAMESTATE_RUNNING:
+      self.say_public("A game started by %s is in progress; "
+          "that person must end it." % self.game_starter)
+      return
 
-      for u in users[:]:
-        if not self.active_players.has_key(u):
-          users.remove(u)
+    if self.gamestate == self.GAMESTATE_NONE:
+      self._reset_gamedata()
+      self.gamestate = self.GAMESTATE_STARTING
+      self.game_starter = game_starter
+      self.players[game_starter] = None
+      self.say_public("A new game has been started by %s; "
+          "say '%s: join' to join the game."
+          % (self.game_starter, self.connection.get_nickname()))
+      self.say_public("%s: Say '%s: start' when everyone has joined."
+          % (self.game_starter, self.connection.get_nickname()))
+      return
+
+    if self.gamestate == self.GAMESTATE_STARTING:
+      if game_starter != self.game_starter:
+        self.say_public("Game startup was begun by %s; "
+            "that person must finish starting it." % self.game_starter)
+        return
+
+      users = self.players.keys()
 
       if len(users) < minUsers:
         self.say_public("Sorry, to start a game, there must be " + \
@@ -310,12 +331,6 @@ class WolfBot(SingleServerIRCBot):
           % (len(users), users)))
 
       else:
-
-        self._reset_gamedata()
-
-        # Remember who started the game.
-        self.game_starter = game_starter
-
         # Everyone starts out alive.
         self.live_players = users[:]
 
@@ -341,7 +356,7 @@ class WolfBot(SingleServerIRCBot):
 
         for text in new_game_texts:
           self.say_public(text)
-        self.game_in_progress = 1
+        self.gamestate = self.GAMESTATE_RUNNING
 
         # Start game by putting bot into "night" mode.
         self.night()
@@ -350,18 +365,19 @@ class WolfBot(SingleServerIRCBot):
   def end_game(self, game_ender):
     "Quit a game in progress."
 
-    if not self.game_in_progress:
+    if self.gamestate == self.GAMESTATE_NONE:
       self.say_public(\
-               "No game is in progress.  Use 'start game' to begin a game.")
+               "No game is in progress.  Use 'start' to begin a game.")
     elif game_ender != self.game_starter:
       self.say_public(\
         ("Sorry, only the starter of the game (%s) may end it." %\
          self.game_starter))
     else:
       self.say_public("The game has ended.")
-      self.reveal_all_identities()
+      if self.gamestate == self.GAMESTATE_RUNNING:
+        self.reveal_all_identities()
       self._reset_gamedata()
-      self.game_in_progress = 0
+      self.gamestate = self.GAMESTATE_NONE
 
 
   def reveal_all_identities(self):
@@ -666,14 +682,16 @@ class WolfBot(SingleServerIRCBot):
         "'renick', 'del', 'votes'")
 
   def cmd_stats(self, args, e):
-    if self.game_in_progress:
+    if self.gamestate == self.GAMESTATE_RUNNING:
       self.print_alive()
       if self.time == "day":
         self.tally_votes()
         self.print_tally()
+    elif self.gamestate == self.GAMESTATE_STARTING:
+      self.reply(e, "A new game is starting, current players are %s"
+          % (self.players.keys()))
     else:
       self.reply(e, "No game is in progress.")
-    self.reply(e, "The active players are %s" % (self.active_players.keys()))
 
   def cmd_status(self, args, e):
     self.cmd_stats(args, e)
@@ -739,29 +757,19 @@ class WolfBot(SingleServerIRCBot):
         return
     self.reply(e, "Lynch who?")
 
-  def cmd_active(self, args, e):
+  def cmd_join(self, args, e):
+    if self.gamestate == self.GAMESTATE_NONE:
+      self.reply(e, 'No game is running, perhaps you would like to start one?')
+      return
+    if self.gamestate == self.GAMESTATE_RUNNING:
+      self.reply(e, 'Game is in progress; please wait for the next game.')
+      return
     player = nm_to_n(e.source())
-    if player in self.active_players:
-      self.reply(e, 'You are already an active player!')
+    if player in self.players:
+      self.reply(e, 'You are in the game!')
     else:
-      self.active_players[player] = None
-      self.reply(e, 'You are now an active player!')
-
-  def cmd_passive(self, args, e):
-    player = nm_to_n(e.source())
-    if args:
-      for nick in args:
-        if self.active_players.has_key(nick):
-          del self.active_players[nick]
-          self.reply(e, '%s is no longer an active player' % nick)
-        else:
-          self.reply(e, '%s was not an active player' % nick)
-    else:
-      if self.active_players.has_key(player):
-        del self.active_players[player]
-        self.reply(e, 'You are no longer an active player')
-      else:
-        self.reply(e, 'You were not an active player')
+      self.players[player] = None
+      self.reply(e, 'You are now in the game.')
 
   def do_command(self, e, cmd):
     """This is the function called whenever someone sends a public or
@@ -771,6 +779,11 @@ class WolfBot(SingleServerIRCBot):
     event, and FROM_PRIVATE is the nick that sent the message."""
 
     cmds = cmd.strip().split(" ")
+
+    if self.debug and e.eventtype() == "pubmsg":
+      if cmds[0][0] == '!':
+        e._source = cmds[0][1:] + '!fakeuser@fakehost'
+        cmds = cmds[1:]
 
     # Dead players should not speak.
     if nm_to_n(e.source()) in self.dead_players:
@@ -845,7 +858,6 @@ def main():
     port = defaultPort
 
   bot = WolfBot(channel, nickname, nickpass, server, port, debug)
-  bot.start()
 
 
 class OutputManager(Thread):
@@ -874,4 +886,4 @@ if __name__ == "__main__":
   try:
     main()
   except KeyboardInterrupt:
-    print "Shutting down."
+    print "Caught Ctrl-C during initialization."
