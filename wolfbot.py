@@ -695,8 +695,8 @@ class WolfBot(SingleServerIRCBot):
 
 
   def cmd_help(self, args, e):
-    self.reply(e, "Valid commands: 'help', 'stats', 'start game', 'end game', "
-        "'renick', 'del', 'votes'")
+    cmds = [i[4:] for i in dir(self) if i.startswith('cmd_')]
+    self.reply(e, "Valid commands: '%s'" % "', '".join(cmds))
 
   def cmd_stats(self, args, e):
     if self.gamestate == self.GAMESTATE_RUNNING:
