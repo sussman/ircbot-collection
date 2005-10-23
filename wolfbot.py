@@ -117,6 +117,7 @@ day_game_texts = \
 # IRC-client class, which uses the python-irc library.  Thanks to Joel
 # Rosdahl for the great framework!
 
+IRC_BOLD = "\x02"
 
 class WolfBot(SingleServerIRCBot):
   GAMESTATE_NONE, GAMESTATE_STARTING, GAMESTATE_RUNNING  = range(3)
@@ -261,7 +262,25 @@ class WolfBot(SingleServerIRCBot):
         if self.nickpass and self.nickname == c.get_nickname():
           self.queue.send('identify %s' % self.nickpass, 'nickserv')
 
+
+  GAME_STARTER_TIMEOUT_MINS = 4
+  def check_game_control(self, e):
+    "Implement a timeout for game controller."
+    if self.game_starter is None:
+      return
+    nick = nm_to_n(e.source())
+    if self.game_starter == nick:
+      self.game_starter_last_seen = time.time()
+    else:
+      if self.game_starter_last_seen < (
+          time.time() - self.GAME_STARTER_TIMEOUT_MINS * 60):
+        self.say_public("Game starter '%s' has been silent for %d minutes. "
+            "Game control is now open to all." % (self.game_starter,
+              self.GAME_STARTER_TIMEOUT_MINS))
+        self.game_starter = None
+
   def on_privmsg(self, c, e):
+    self.check_game_control(e)
     self.do_command(e, e.arguments()[0])
 
 
@@ -270,6 +289,7 @@ class WolfBot(SingleServerIRCBot):
 
 
   def on_pubmsg(self, c, e):
+    self.check_game_control(e)
     a = string.split(e.arguments()[0], ":", 1)
     if len(a) > 1 and irc_lower(a[0]) == irc_lower(c.get_nickname()):
       self.do_command(e, string.strip(a[1]))
@@ -279,6 +299,7 @@ class WolfBot(SingleServerIRCBot):
     self.gamestate = self.GAMESTATE_NONE
     self.time = None
     self.game_starter = None
+    self.game_starter_last_seen = 0
     self.live_players = []
     self.dead_players = []
     self.wolves = []
@@ -297,12 +318,12 @@ class WolfBot(SingleServerIRCBot):
   def say_public(self, text):
     "Print TEXT into public channel, for all to see."
 
-    self.queue.send(text, self.channel)
+    self.queue.send(IRC_BOLD+text, self.channel)
 
 
   def say_private(self, nick, text):
     "Send private message of TEXT to NICK."
-    self.queue.send(text,nick)
+    self.queue.send(IRC_BOLD+text,nick)
 
 
   def reply(self, e, text):
@@ -326,6 +347,7 @@ class WolfBot(SingleServerIRCBot):
       self._reset_gamedata()
       self.gamestate = self.GAMESTATE_STARTING
       self.game_starter = game_starter
+      self.game_starter_last_seen = time.time()
       self.live_players.append(game_starter)
       self.say_public("A new game has been started by %s; "
           "say '%s: join' to join the game."
@@ -340,6 +362,7 @@ class WolfBot(SingleServerIRCBot):
             "that person must finish starting it." % self.game_starter)
         return
       self.game_starter = game_starter
+      self.game_starter_last_seen = time.time()
 
       if len(self.live_players) < minUsers:
         self.say_public("Sorry, to start a game, there must be " + \
@@ -785,7 +808,7 @@ class WolfBot(SingleServerIRCBot):
       return
     player = nm_to_n(e.source())
     if player in self.live_players:
-      self.reply(e, 'You are in the game!')
+      self.reply(e, 'You were already in the game!')
     else:
       self.live_players.append(player)
       self.reply(e, 'You are now in the game.')
