@@ -33,7 +33,8 @@ The main commands are:
 
 import sys, string, random, time
 from ircbot import SingleServerIRCBot
-from irclib import nm_to_n, nm_to_h, irc_lower
+import irclib
+from irclib import nm_to_n, nm_to_h, irc_lower, parse_channel_modes
 from threading import Thread, Event
 
 #---------------------------------------------------------------------
@@ -130,6 +131,7 @@ class WolfBot(SingleServerIRCBot):
     self.nickname = nickname
     self.nickpass = nickpass
     self.debug = debug
+    self.moderation = True
     self._reset_gamedata()
     self.queue = OutputManager(self.connection)
     self.queue.start()
@@ -236,6 +238,26 @@ class WolfBot(SingleServerIRCBot):
       self.check_game_over()
 
 
+  def on_join(self, c, e):
+    nick = nm_to_n(e.source())
+    if nick == c.get_nickname():
+      chan = e.target()
+      self.connection.mode(self.channel, '')
+
+  def on_channelmodeis(self, c, e):
+    c._handle_event(
+        irclib.Event("mode", e.source(), e.arguments()[0], [e.arguments()[1]]))
+    self.fix_modes()
+
+  def on_mode(self, c, e):
+    if e.target() == self.channel:
+      try:
+        if parse_channel_modes(e.arguments()[0]) == ['+','o',c.get_nickname()]:
+          self.fix_modes()
+      except IndexError:
+        pass
+      
+
   def on_quit(self, c, e):
     source = nm_to_n(e.source())
     self._removeUser(source)
@@ -252,6 +274,44 @@ class WolfBot(SingleServerIRCBot):
     if c.get_nickname() != self.nickname:
       # Reclaim our desired nickname
       c.privmsg('nickserv', 'ghost %s %s' % (self.nickname, self.nickpass))
+
+
+  def fix_modes(self):
+    chobj = self.channels[self.channel]
+    is_moderated = chobj.is_moderated()
+    should_be_moderated = (self.gamestate == self.GAMESTATE_RUNNING
+        and self.moderation)
+    if is_moderated and not should_be_moderated:
+      self.connection.mode(self.channel, '-m')
+    elif not is_moderated and should_be_moderated:
+      self.connection.mode(self.channel, '+m')
+
+    voice = []
+    devoice = []
+    for user in chobj.users():
+      is_live = user in self.live_players
+      is_voiced = chobj.is_voiced(user)
+      if is_live and not is_voiced:
+        voice.append(user)
+      elif not is_live and is_voiced:
+        devoice.append(user)
+    self.multimode('+v', voice)
+    self.multimode('-v', devoice)
+
+
+  def multimode(self, mode, nicks):
+    max_batch = 4 # FIXME: Get this from features message
+    assert len(mode) == 2
+    assert mode[0] in ('-', '+')
+    while nicks:
+      batch_len = len(nicks)
+      if batch_len > max_batch:
+        batch_len = max_batch
+      tokens = [mode[0] + (mode[1]*batch_len)]
+      while batch_len:
+        tokens.append(nicks.pop(0))
+        batch_len -= 1
+      self.connection.mode(self.channel, ' '.join(tokens))
 
 
   def on_privnotice(self, c, e):
@@ -354,6 +414,7 @@ class WolfBot(SingleServerIRCBot):
           % (self.game_starter, self.connection.get_nickname()))
       self.say_public("%s: Say '%s: start' when everyone has joined."
           % (self.game_starter, self.connection.get_nickname()))
+      self.fix_modes()
       return
 
     if self.gamestate == self.GAMESTATE_STARTING:
@@ -395,6 +456,8 @@ class WolfBot(SingleServerIRCBot):
           self.say_public(text)
         self.gamestate = self.GAMESTATE_RUNNING
 
+        self.fix_modes()
+
         # Start game by putting bot into "night" mode.
         self.night()
 
@@ -415,6 +478,7 @@ class WolfBot(SingleServerIRCBot):
         self.reveal_all_identities()
       self._reset_gamedata()
       self.gamestate = self.GAMESTATE_NONE
+      self.fix_modes()
 
 
   def reveal_all_identities(self):
@@ -465,16 +529,6 @@ class WolfBot(SingleServerIRCBot):
       return 1
     else:
       return 0
-
-  def on_mode(self, c, e):
-    nick = nm_to_n(e.source())
-    chan = e.target()
-    try:
-      mode = e.arguments()[0];
-      who = e.arguments()[1]
-    except IndexError:
-      return
-
 
 
   def night(self):
@@ -606,6 +660,7 @@ class WolfBot(SingleServerIRCBot):
 
     self.live_players.remove(player)
     self.dead_players.append(player)
+    self.fix_modes()
 
     if player in self.wolves:
       id = "a WEREWOLF!"
@@ -812,11 +867,31 @@ class WolfBot(SingleServerIRCBot):
     else:
       self.live_players.append(player)
       self.reply(e, 'You are now in the game.')
+      self.fix_modes()
 
   def cmd_aboutbot(self, args, e):
     self.reply(e, "I am a bot written in Python "
         "using the python-irclib library")
     self.reply(e, "My source code is available at %s" % svn_url)
+
+  def cmd_moderation(self, args, e):
+    if self.game_starter and self.game_starter != nm_to_n(e.source()):
+      self.reply(e, "%s started the game, and so has administrative control. "
+          "Request denied." % self.game_starter)
+      return
+    if len(args) != 1:
+      self.reply(e, "Usage: moderation on|off")
+      return
+    if args[0] == 'on':
+      self.moderation = True
+    elif args[0] == 'off':
+      self.moderation = False
+    else:
+      self.reply(e, "Usage: moderation on|off")
+      return
+    self.say_public('Moderation turned %s by %s'
+        % (args[0], nm_to_n(e.source())))
+    self.fix_modes()
 
   def do_command(self, e, cmd):
     """This is the function called whenever someone sends a public or
