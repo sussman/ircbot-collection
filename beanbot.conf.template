@@ -1,0 +1,6 @@
+[msgbot]
+host = irc.freenode.net
+channel = #red-bean
+nickname = beanbot
+nickpass = 
+udp-addr = localhost:47701
