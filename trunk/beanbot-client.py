@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import sys, os, popen2
+import sys, os, re, popen2
 from socket import *
 
 serve_addr = ('localhost', 47701)
@@ -22,7 +22,7 @@ if __name__ == '__main__':
   repos, rev = sys.argv[1:3]
   author = popen(('/usr/local/bin/svnlook', 'author', '-r', rev, repos))
   log = popen(('/usr/local/bin/svnlook', 'log', '-r', rev, repos))
-  log = log.replace('\n', ' ')
+  log = re.subn(r'\n( ?) *', r'\1', log)[0]
   repos = os.path.basename(repos)
   data = (
       "%(IRC_LIME)s%(author)s "
