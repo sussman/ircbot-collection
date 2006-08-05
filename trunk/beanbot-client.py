@@ -22,7 +22,7 @@ if __name__ == '__main__':
   repos, rev = sys.argv[1:3]
   author = popen(('/usr/local/bin/svnlook', 'author', '-r', rev, repos))
   log = popen(('/usr/local/bin/svnlook', 'log', '-r', rev, repos))
-  log = re.subn(r'\n( ?) *', r'\1', log)[0]
+  log = re.subn(r'\n *', ' ', log)[0]
   repos = os.path.basename(repos)
   data = (
       "%(IRC_LIME)s%(author)s "
