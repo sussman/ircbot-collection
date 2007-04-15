@@ -22,9 +22,7 @@ are given by prefixing the text by the bot name followed by a colon.
 import sys, string, random, time
 from ircbot import SingleServerIRCBot
 from irclib import nm_to_n, nm_to_h, irc_lower
-from botcommon import OutputManager
-
-defaultPort=6667
+import botcommon
 
 #--------------------------------------------------------------------
 # Pinky's exclamations.
@@ -132,11 +130,11 @@ ponderings = \
 
 
 class PinkyBot(SingleServerIRCBot):
-  def __init__(self, channel, nickname, server, port=defaultPort):
+  def __init__(self, channel, nickname, server, port):
     SingleServerIRCBot.__init__(self, [(server, port)], nickname, nickname)
     self.channel = channel
     self.nickname = nickname
-    self.queue = OutputManager(self.connection)
+    self.queue = botcommon.OutputManager(self.connection)
     self.queue.start()
     self.start()
 
@@ -211,32 +209,9 @@ class PinkyBot(SingleServerIRCBot):
       self.reply(self.exclaim_something(), target)
 
 
-def main():
-  
-  if len(sys.argv) != 4:
-    print "Usage: pinkybot.py <server[:port]> <channel> <nickname>"
-    sys.exit(1)
-
-  s = string.split(sys.argv[1], ":", 1)
-  server = s[0]
-  if len(s) == 2:
-    try:
-      port = int(s[1])
-    except ValueError:
-      print "Error: Erroneous port."
-      sys.exit(1)
-  else:
-    port = defaultPort
-  channel = sys.argv[2]
-  nickname = sys.argv[3]
-
-  bot = PinkyBot(channel, nickname, server, port)
-  bot.start()
-
-
 if __name__ == "__main__":
   try:
-    main()
+    botcommon.trivial_bot_main(PinkyBot)
   except KeyboardInterrupt:
     print "Shutting down."
 
