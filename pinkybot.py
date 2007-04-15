@@ -148,7 +148,7 @@ class PinkyBot(SingleServerIRCBot):
   def on_privmsg(self, c, e):
     from_nick = nm_to_n(e.source())
     self.do_command(e, e.arguments()[0], from_nick)
-  
+
   def on_pubmsg(self, c, e):
     from_nick = nm_to_n(e.source())
     a = string.split(e.arguments()[0], ":", 1)
@@ -176,11 +176,11 @@ class PinkyBot(SingleServerIRCBot):
   def ponder_something(self):
     "Return a random string indicating what Pinky's pondering."
     return random.choice(ponderings)
-    
+
   def exclaim_something(self):
     "Return a random exclamation string."
     return random.choice(exclamations)
-    
+
   def do_command(self, e, cmd, from_private):
     """This is the function called whenever someone sends a public or
     private message addressed to the bot. (e.g. "bot: blah").  Parse
@@ -194,7 +194,7 @@ class PinkyBot(SingleServerIRCBot):
     else:
       # assume that from_private comes from a 'privmsg' event.
       target = from_private.strip()
-    
+
     expected1 = "are you thinking what I'm thinking?"
     expected2 = "are you pondering what I'm pondering?"
 

@@ -2,7 +2,7 @@
 #
 # Simple IRC Bot to announce messages
 #
-#    by Max Bowsher <maxb@red-bean.com> 
+#    by Max Bowsher <maxb@red-bean.com>
 #    very strongly based on wolfbot.py
 #    by Ben Collins-Sussman <sussman@red-bean.com>
 #       http://www.red-bean.com/sussman

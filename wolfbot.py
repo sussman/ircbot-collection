@@ -256,7 +256,7 @@ class WolfBot(SingleServerIRCBot):
           self.fix_modes()
       except IndexError:
         pass
-      
+
 
   def on_quit(self, c, e):
     source = nm_to_n(e.source())
