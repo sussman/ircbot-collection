@@ -35,7 +35,7 @@ import sys, string, random, time
 from ircbot import SingleServerIRCBot
 import irclib
 from irclib import nm_to_n, nm_to_h, irc_lower, parse_channel_modes
-from threading import Thread, Event
+from botcommon import OutputManager
 
 #---------------------------------------------------------------------
 # General texts for narrating the game.  Change these global strings
@@ -133,7 +133,7 @@ class WolfBot(SingleServerIRCBot):
     self.debug = debug
     self.moderation = True
     self._reset_gamedata()
-    self.queue = OutputManager(self.connection)
+    self.queue = OutputManager(self.connection, .9)
     self.queue.start()
     try:
       self.start()
@@ -980,28 +980,6 @@ def main():
     port = defaultPort
 
   bot = WolfBot(channel, nickname, nickpass, server, port, debug)
-
-
-class OutputManager(Thread):
-  def __init__(self, connection):
-      Thread.__init__(self)
-      self.setDaemon(1)
-      self.connection = connection
-      self.event = Event()
-      self.queue = []
-
-  def run(self):
-      while 1:
-        self.event.wait()
-        while self.queue:
-          msg,target = self.queue.pop(0)
-          self.connection.privmsg(target, msg)
-          time.sleep(.9)
-        self.event.clear()
-
-  def send(self, msg, target):
-    self.queue.append((msg.strip(),target))
-    self.event.set()
 
 
 if __name__ == "__main__":
