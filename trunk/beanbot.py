@@ -244,18 +244,13 @@ class OutputManager(Thread):
       self.queue = []
 
   def run(self):
-    try:
       while 1:
         self.event.wait()
         while self.queue:
-          if self.connection.is_connected():
-            msg,target = self.queue.pop(0)
-            print ">%s: %s" % (target, msg)
-            self.connection.privmsg(target, msg)
+          msg,target = self.queue.pop(0)
+          self.connection.privmsg(target, msg)
           time.sleep(.9)
         self.event.clear()
-    finally:
-      sys.exit(1)
 
   def send(self, msg, target):
     self.queue.append((msg.strip(),target))
