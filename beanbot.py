@@ -109,7 +109,7 @@ class Bot(SingleServerIRCBot):
 
   def on_welcome(self, c, e):
     c.join(self.channel)
-    if c.get_nickname() != self.nickname:
+    if self.nickpass and c.get_nickname() != self.nickname:
       # Reclaim our desired nickname
       c.privmsg('nickserv', 'ghost %s %s' % (self.nickname, self.nickpass))
 
@@ -230,7 +230,10 @@ def main():
   ircaddr = parse_host_port(c.get(cfgsect, 'host'), 6667)
   channel = c.get(cfgsect, 'channel')
   nickname = c.get(cfgsect, 'nickname')
-  nickpass = c.get(cfgsect, 'nickpass')
+  try:
+    nickpass = c.get(cfgsect, 'nickpass')
+  except ConfigParser.NoOptionError:
+    nickpass = None
   udpaddr = parse_host_port(c.get(cfgsect, 'udp-addr'))
 
   Bot(channel, nickname, nickpass, ircaddr, udpaddr, debug)
