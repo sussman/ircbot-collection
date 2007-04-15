@@ -108,7 +108,7 @@ class SussBot(SingleServerIRCBot):
   def on_privmsg(self, c, e):
     from_nick = nm_to_n(e.source())
     self.do_command(e, e.arguments()[0], from_nick)
-  
+
   def on_pubmsg(self, c, e):
     from_nick = nm_to_n(e.source())
     a = string.split(e.arguments()[0], ":", 1)
@@ -136,11 +136,11 @@ class SussBot(SingleServerIRCBot):
   def ponder_something(self):
     "Return a random string indicating what sussman's pondering."
     return random.choice(ponderings)
-    
+
   def exclaim_something(self):
     "Return a random exclamation string."
     return random.choice(exclamations)
-    
+
   def do_command(self, e, cmd, from_private):
     """This is the function called whenever someone sends a public or
     private message addressed to the bot. (e.g. "bot: blah").  Parse
@@ -158,7 +158,7 @@ class SussBot(SingleServerIRCBot):
     # pause before replying, for believable effect:
     time.sleep(random.randrange(4, 12))
 
-    if cmd[-1] == '?':      
+    if cmd[-1] == '?':
       self.reply(self.ponder_something(), target)
     else:
       self.reply(self.exclaim_something(), target)
