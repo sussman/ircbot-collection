@@ -24,7 +24,8 @@ import sys, string, random, time, os, fcntl
 from ircbot import SingleServerIRCBot
 import irclib
 from irclib import nm_to_n, nm_to_h, irc_lower, parse_channel_modes
-from threading import Thread, Event
+from botcommon import OutputManager
+from threading import Thread
 
 svn_url = \
 "$URL$"
@@ -40,7 +41,7 @@ class Bot(SingleServerIRCBot):
     self.nickname = nickname
     self.nickpass = nickpass
     self.debug = debug
-    self.queue = OutputManager(self.connection)
+    self.queue = OutputManager(self.connection, .9)
     self.queue.start()
     self.inputthread = UDPInput(self, udpaddr)
     self.inputthread.start()
@@ -233,28 +234,6 @@ def main():
   udpaddr = parse_host_port(c.get(cfgsect, 'udp-addr'))
 
   Bot(channel, nickname, nickpass, ircaddr, udpaddr, debug)
-
-
-class OutputManager(Thread):
-  def __init__(self, connection):
-      Thread.__init__(self)
-      self.setDaemon(1)
-      self.connection = connection
-      self.event = Event()
-      self.queue = []
-
-  def run(self):
-      while 1:
-        self.event.wait()
-        while self.queue:
-          msg,target = self.queue.pop(0)
-          self.connection.privmsg(target, msg)
-          time.sleep(.9)
-        self.event.clear()
-
-  def send(self, msg, target):
-    self.queue.append((msg.strip(),target))
-    self.event.set()
 
 
 class UDPInput(Thread):
