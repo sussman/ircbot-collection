@@ -825,6 +825,7 @@ class WolfBot(SingleServerIRCBot):
   def cmd_renick(self, args, e):
     if len(args) != 1:
       self.reply(e, "Usage: renick <nick>")
+      return
     self.connection.nick(args[0])
 
   def cmd_see(self, args, e):
