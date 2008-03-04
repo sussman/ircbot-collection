@@ -2,9 +2,6 @@
 #
 # IRC Bot to fill in for sussman in channel #svn
 #
-#    by Ben Collins-Sussman <sussman@red-bean.com>
-#       http://www.red-bean.com/sussman
-#
 # Code originally based on example bot and irc-bot class from
 # Joel Rosdahl <joel@rosdahl.net>, author of included python-irclib.
 #
