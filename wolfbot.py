@@ -2,9 +2,6 @@
 #
 # IRC Bot to moderate a game of "Werewolf".
 #
-#    by Ben Collins-Sussman <sussman@red-bean.com>
-#       http://www.red-bean.com/sussman
-#
 # Werewolf is a traditional party game, sometimes known as 'Mafia',
 # with dozens of variants.  This bot is following Andrew Plotkin's rules:
 # http://www.eblong.com/zarf/werewolf.html
@@ -12,7 +9,6 @@
 # Code originally based on example bot and irc-bot class from
 # Joel Rosdahl <joel@rosdahl.net>, author of included python-irclib.
 #
-
 
 """An IRC bot to moderate a game of "Werewolf".
 
