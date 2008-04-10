@@ -16,6 +16,8 @@ This is an example bot that uses the SingleServerIRCBot class from
 ircbot.py.  The bot enters a channel and listens for commands in
 private messages and channel traffic.  Commands in channel messages
 are given by prefixing the text by the bot name followed by a colon.
+(Or by prefixing the command with '!', e.g. '!start'
+or 'wolfbot: start')
 
 The main commands are:
 
@@ -37,7 +39,7 @@ from botcommon import OutputManager
 # General texts for narrating the game.  Change these global strings
 # however you wish, without having to muck with the core logic!
 
-minUsers=6
+minUsers=4
 defaultPort=6667
 
 svn_url = \
@@ -48,24 +50,24 @@ svn_url = svn_url[svn_url.find(' ')+1:svn_url.rfind('/')+1]
 
 new_game_texts = \
 ["This is a game of paranoia and psychological intrigue.  Everyone\
- in this group appears to be a common villager, but three of\
- you are 'special'.  Two people are actually evil werewolves, seeking\
+ in this group appears to be a common villager, but several of\
+ you are 'special'.  One or two of you are actually evil werewolves, seeking\
  to kill everyone while concealing their identity.",
 
  "And one of you is also a 'seer'; you have the ability to learn\
  whether a specific person is or is not a werewolf.",
 
  "As a community, your group objective is to weed out the werewolves\
- and lynch them both, before you're all killed in your sleep."]
+ and lynch them before you're all killed in your sleep."]
 
 # Printed when informing players of their initial roles:
 
 wolf_intro_text = \
-"You are a WEREWOLF.  You want to kill everyone while they sleep. \
+"You are a \x034werewolf\x0f\x02.  You want to kill everyone while they sleep. \
 Whatever happens, keep your identity secret.  Act natural!"
 
 seer_intro_text = \
-"You're a villager, but also a SEER.  Later on, you'll get chances to \
+"You're a villager, but also a \x034seer\x0f\x02.  Later on, you'll get chances to \
 learn whether someone is or isn't a werewolf.  Keep your identity \
 secret, or the werewolves may kill you!"
 
@@ -76,7 +78,7 @@ villager_intro_text = \
 # Printed when night begins:
 
 night_game_texts = \
-["Darkness falls:  it is NIGHT.",
+["Darkness falls:  it is \x034night\x0f\x02.",
  "The whole village sleeps peacefully...",
  "Everyone relax and wait for morning... I'll tell you when night is over."]
 
@@ -91,8 +93,8 @@ night_seer_texts = \
  identity."]
 
 night_werewolf_texts = \
-["As the villagers sleep, you must now decide who you want to kill.",
- "You and the other werewolf should discuss (privately) and choose a victim.",
+["As the villagers sleep, you must now decide whom you want to kill.",
+ "You and the other werewolf (if he is exists and is alive) should discuss (privately) and choose a victim.",
  "Please type 'kill <nickname>' (as a private message to me)."]
 
 
@@ -129,7 +131,7 @@ class WolfBot(SingleServerIRCBot):
     self.debug = debug
     self.moderation = True
     self._reset_gamedata()
-    self.queue = OutputManager(self.connection, .9)
+    self.queue = OutputManager(self.connection)
     self.queue.start()
     try:
       self.start()
@@ -199,7 +201,7 @@ class WolfBot(SingleServerIRCBot):
     if nick == self.game_starter:
       self.game_starter = None
     if nick in self.live_players:
-      self.say_public("%s left while nobody was looking!" % nick)
+      self.say_public("%s disappeared in some sort of strange wormhole." % nick)
       self.live_players.remove(nick)
       if self.gamestate == self.GAMESTATE_STARTING:
         # No more to do
@@ -207,14 +209,15 @@ class WolfBot(SingleServerIRCBot):
       self.dead_players.append(nick)
       if nick in self.wolves:
         self.wolves.remove(nick)
-        self.say_public("%s's apartment always smelled like wet dog!" % nick)
+        self.say_public("The only relic left by %s was a copious amount of lupine fur.  "
+	    "Now we know why %s always growled whenever a cat was nearby." % (nick,nick))
       if nick in self.villagers:
         self.villagers.remove(nick)
-        self.say_public("%s was a quiet, normal sort of feller. "
-            "Kept to himself...." % nick)
+        self.say_public("%s had a boring position in the game, that of a villager.  "
+            "Hopefully death will be more interesting." % nick)
       if nick == self.seer:
-        self.say_public("%s was blessed with unusual insight into "
-            "lycanthropism." % nick)
+        self.say_public("%s was a seer.  Apollo is mad that all his seers "
+            "get destroyed by timespace anomalies." % nick)
       if nick == self.seer_target:
         self.say_private("Due to %s's unexpected erasure from reality, "
             "you may See once again this night." % nick, self.seer)
@@ -252,7 +255,7 @@ class WolfBot(SingleServerIRCBot):
           self.fix_modes()
       except IndexError:
         pass
-
+      
 
   def on_quit(self, c, e):
     source = nm_to_n(e.source())
@@ -343,13 +346,17 @@ class WolfBot(SingleServerIRCBot):
   def on_part(self, c, e):
     self._removeUser(nm_to_n(e.source()))
 
+  def on_kick(self, c, e):
+    self._removeUser(nm_to_n(e.arguments()[0]))
 
   def on_pubmsg(self, c, e):
     self.check_game_control(e)
-    a = string.split(e.arguments()[0], ":", 1)
+    s = e.arguments()[0]
+    a = string.split(s, ":", 1)
     if len(a) > 1 and irc_lower(a[0]) == irc_lower(c.get_nickname()):
       self.do_command(e, string.strip(a[1]))
-
+    if s[0]=='!' and (len(s) > 1) and s[1]!='!':
+      self.do_command(e, string.strip(s[1:]))
 
   def _reset_gamedata(self):
     self.gamestate = self.GAMESTATE_NONE
@@ -432,7 +439,11 @@ class WolfBot(SingleServerIRCBot):
         users = self.live_players[:]
         self.say_public("A new game has begun! Please wait, assigning roles...")
         self.wolves.append(users.pop(random.randrange(len(users))))
-        self.wolves.append(users.pop(random.randrange(len(users))))
+	if len(self.live_players) > 7:
+	  self.wolves.append(users.pop(random.randrange(len(users))))
+	  self.say_public("There are 8 or more players so there are two werewolves.")
+	else:
+	  self.say_public("There are not enough players for two werewolves so there is only one werewolf.")
         self.originalwolves = self.wolves[:]
         self.seer = users.pop(random.randrange(len(users)))
         for user in users:
@@ -479,10 +490,14 @@ class WolfBot(SingleServerIRCBot):
 
   def reveal_all_identities(self):
     "Print everyone's identities."
-
-    self.say_public(("*** The two wolves were %s and %s, the seer was %s. "
-      "Everyone else was a normal villager"
-      % (self.originalwolves[0], self.originalwolves[1], self.seer)))
+    if len(self.originalwolves)==2:
+      self.say_public(("*** The two wolves were %s and %s, the seer was %s. "
+        "Everyone else was a normal villager"
+        % (self.originalwolves[0], self.originalwolves[1], self.seer)))
+    else:
+      self.say_public(("*** The wolf was %s, the seer was %s. "
+        "Everyone else was a normal villager"
+	% (self.originalwolves[0], self.seer)))
 
   def check_game_over(self):
     """End the game if either villagers or werewolves have won.
@@ -490,7 +505,7 @@ class WolfBot(SingleServerIRCBot):
 
     # If all wolves are dead, the villagers win.
     if len(self.wolves) == 0:
-      self.say_public("The wolves are dead!  The VILLAGERS have WON.")
+      self.say_public("The wolves are dead!  The \x034villagers\x0f\x02 have \x034won\x0f.")
       self.end_game(self.game_starter)
       return 1
 
@@ -501,7 +516,7 @@ class WolfBot(SingleServerIRCBot):
         "There are now an equal number of villagers and werewolves.")
       msg = "The werewolves have no need to hide anymore; "
       msg = msg + "They attack the remaining villagers. "
-      msg = msg + "The WEREWOLVES have WON."
+      msg = msg + "The \x034werewolves\x0f\x02 have \x034won\x0f."
       self.say_public(msg)
       self.end_game(self.game_starter)
       return 1
@@ -568,10 +583,10 @@ class WolfBot(SingleServerIRCBot):
     self.time = "day"
 
     # Discover the dead wolf victim.
-    self.say_public("DAY Breaks!  Sunlight pierces the sky.")
+    self.say_public("\x034Day\x0f\x02 Breaks!  Sunlight pierces the sky.")
     self.say_public(("The village awakes in horror..." + \
-                     "to find the mutilated body of %s!!"\
-                     % self.wolf_target.upper()))
+                     "to find the mutilated body of \x034%s\x0f\x02!!"\
+                     % self.wolf_target))
 
     if not self.kill_player(self.wolf_target):
       # Clear all the nighttime voting variables:
@@ -659,10 +674,10 @@ class WolfBot(SingleServerIRCBot):
     self.fix_modes()
 
     if player in self.wolves:
-      id = "a WEREWOLF!"
+      id = "a \x034wolf\x0f\x02!"
       self.wolves.remove(player)
     elif player == self.seer:
-      id = "the SEER!"
+      id = "the \x034seer\x0f\x02!"
     else:
       id = "a normal villager."
 
@@ -672,7 +687,7 @@ class WolfBot(SingleServerIRCBot):
       return 1
     else:
       self.say_public(("(%s is now dead, and should stay quiet.)") % player)
-      self.say_private(player, "You are now DEAD.  You may observe the game,")
+      self.say_private(player, "You are now \x034dead\x0f\x02.  You may observe the game,")
       self.say_private(player, "but please stay quiet until the game is over.")
       return 0
 
@@ -762,7 +777,7 @@ class WolfBot(SingleServerIRCBot):
         self.print_tally()
       else:
         self.say_public(("The majority has voted to lynch %s!! "
-          "Mob violence ensues.  This player is now DEAD." % victim))
+          "Mob violence ensues.  This player is now \x034dead\x0f\x02." % victim))
         if not self.kill_player(victim):
           # Day is done;  flip bot back into night-mode.
           self.night()
@@ -807,8 +822,12 @@ class WolfBot(SingleServerIRCBot):
       if non_voters:
         self.say_public("The following have no votes registered: %s"
             % (non_voters))
+	self.say_public("The votes are as follows: %s"
+	    % (self.villager_votes))
       else:
         self.say_public("Everyone has voted.")
+	self.say_public("The votes are as follows: %s"
+	    % (self.villager_votes))
     else:
       self.say_public("Nobody has voted yet.")
 
@@ -821,8 +840,8 @@ class WolfBot(SingleServerIRCBot):
   def cmd_renick(self, args, e):
     if len(args) != 1:
       self.reply(e, "Usage: renick <nick>")
-      return
-    self.connection.nick(args[0])
+    else:
+      self.connection.nick(args[0])
 
   def cmd_see(self, args, e):
     target = nm_to_n(e.source())
@@ -831,7 +850,7 @@ class WolfBot(SingleServerIRCBot):
       if viewee is not None:
         self.see(e, viewee.strip())
         return
-    self.reply(e, "See who?")
+    self.reply(e, "See whom?")
 
   def cmd_kill(self, args, e):
     target = nm_to_n(e.source())
@@ -840,7 +859,7 @@ class WolfBot(SingleServerIRCBot):
       if killee is not None:
         self.kill(e, killee)
         return
-    self.reply(e, "Kill who?")
+    self.reply(e, "Kill whom?")
 
   def cmd_lynch(self, args, e):
     target = nm_to_n(e.source())
@@ -849,7 +868,7 @@ class WolfBot(SingleServerIRCBot):
       if lynchee is not None:
         self.lynch_vote(e, lynchee.strip())
         return
-    self.reply(e, "Lynch who?")
+    self.reply(e, "Lynch whom?")
 
   def cmd_join(self, args, e):
     if self.gamestate == self.GAMESTATE_NONE:
@@ -896,9 +915,9 @@ class WolfBot(SingleServerIRCBot):
     the CMD, execute it, then reply either to public channel or via
     /msg, based on how the command was received.  E is the original
     event, and FROM_PRIVATE is the nick that sent the message."""
-
+    if cmd=='': return
     cmds = cmd.strip().split(" ")
-
+    cmds[0]=cmds[0].lower()
     if self.debug and e.eventtype() == "pubmsg":
       if cmds[0][0] == '!':
         e._source = cmds[0][1:] + '!fakeuser@fakehost'
@@ -923,7 +942,7 @@ class WolfBot(SingleServerIRCBot):
 
     # reply either to public channel, or to person who /msg'd
     if self.time is None:
-      self.reply(e, "I don't understand '%s'."%(cmd))
+      self.reply(e, "That command makes no sense.")
     elif self.time == "night":
       self.reply(e, "SSSHH!  It's night, everyone's asleep!")
     elif self.time == "day":
