@@ -1,14 +1,7 @@
 #!/usr/bin/env python
-#
-# IRC Bot to give responses as "Pinky", based on "Pinky and the Brain".
-#
-# Code originally based on example bot and irc-bot class from
-# Joel Rosdahl <joel@rosdahl.net>, author of included python-irclib.
-#
 
+"""An IRC bot that just gives Noam Chomsky quotes when addressed."""
 
-"""An IRC bot that just gives Noam Chomsky quotes when addressed.
-"""
 import os
 import sys, string, random, time
 from ircbot import SingleServerIRCBot
